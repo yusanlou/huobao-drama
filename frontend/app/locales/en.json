@@ -921,5 +921,40 @@
         "desc": "Click this \"?\" button to replay this page's guide. Happy creating!"
       }
     }
+  },
+  "mcp": {
+    "title": "MCP service",
+    "description": "Connect MCP-compatible AI tools to existing Huobao projects, assets and production workflows.",
+    "connection": "Extension connection",
+    "offline": "Extension not connected",
+    "connected": "Connected",
+    "refresh": "Refresh",
+    "startHint": "First install the extension from the project root: npm install --prefix extensions/huobao-mcp. Then run:",
+    "enable": "Enable MCP service",
+    "switchHint": "Turning off blocks new calls and pauses subsequent steps. Submitted Huobao tasks may still change your work. Resume previous runs explicitly after enabling.",
+    "backend": "Huobao backend",
+    "health": "Backend health",
+    "healthy": "Connected",
+    "unhealthy": "Backend unreachable. Check that Huobao is running.",
+    "endpoint": "MCP URL",
+    "copyConfig": "Copy connection details",
+    "configHint": "Includes the MCP URL and credentials. Adapt to your AI client configuration and keep private. Uses Streamable HTTP; no Codex dependency.",
+    "copied": "Connection details copied, including credentials.",
+    "runs": "Recent production runs",
+    "noRuns": "No runs yet. Connect your AI tool to MCP to prepare a production plan.",
+    "project": "Project",
+    "resume": "Resume",
+    "stepsDone": "steps completed",
+    "inflight": "Submitted work is still running in Huobao.",
+    "attentionHint": "Reconcile failed or uncertain submissions. Ask your AI tool to inspect the run and plan only the remaining targets.",
+    "conflict": "Another window changed the switch. Review refreshed status before retrying.",
+    "disabled": "MCP is disabled.",
+    "operationFailed": "Operation failed. Check the connection and retry.",
+    "states": {
+      "running": "Running",
+      "paused": "Paused",
+      "needs_attention": "Needs attention",
+      "completed": "Completed"
+    }
   }
 }

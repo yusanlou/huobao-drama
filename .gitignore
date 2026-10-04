@@ -58,3 +58,9 @@ desktop/build/
 desktop/dist/
 desktop/release/
 desktop/resources/
+
+# Optional MCP extension local state (includes credentials)
+extensions/huobao-mcp/.data/
+
+# Nuxt generate creates a dist symlink, not a directory
+/frontend/dist

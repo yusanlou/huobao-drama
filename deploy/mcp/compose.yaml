@@ -1,0 +1,17 @@
+# Optional extension only. The original Huobao backend is not rebuilt or modified.
+services:
+  huobao-mcp:
+    build: ../../extensions/huobao-mcp
+    ports:
+      - "127.0.0.1:5680:5680"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      HUOBAO_API_BASE_URL: ${HUOBAO_API_BASE_URL:-http://host.docker.internal:5679/api/v1}
+      HUOBAO_MCP_PUBLIC_URL: ${HUOBAO_MCP_PUBLIC_URL:-http://localhost:5680/mcp}
+      HUOBAO_MCP_ORIGINS: ${HUOBAO_MCP_ORIGINS:-http://localhost:3013,http://localhost:5679}
+    volumes:
+      - mcp-state:/data
+    restart: unless-stopped
+volumes:
+  mcp-state:

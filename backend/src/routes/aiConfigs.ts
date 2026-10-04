@@ -95,7 +95,7 @@ function buildProbe(serviceType: string, provider: string, baseUrl: string, mode
   }
 
   if (p === 'aliyun') {
-    // Wan 3.0 仅支持异步提交；空请求体不会创建计费任务，仅用于验证地域端点与鉴权是否可达。
+    // Wan 3.0 仅支持异步提交；空请求体不会创建计费任务，只能探测端点是否可达。
     return {
       method: 'POST',
       url: joinProviderUrl(baseUrl, '/api/v1', '/services/aigc/video-generation/video-synthesis'),
@@ -196,6 +196,10 @@ app.post('/test', async (c) => {
     })
     const text = await resp.text()
     const reachable = [200, 204, 400, 401, 403].includes(resp.status)
+    let responseCode: string | undefined
+    try { responseCode = JSON.parse(text)?.code } catch { /* 非 JSON 响应 */ }
+    const expectedAliyunProbeError = body.provider.toLowerCase() === 'aliyun'
+      && resp.status === 400 && responseCode === 'BadRequest.EmptyModel'
     const payload = {
       ok: resp.ok,
       reachable,
@@ -203,9 +207,11 @@ app.post('/test', async (c) => {
       status_text: resp.statusText,
       method: probe.method,
       url: probeUrl,
-      message: reachable
-        ? (resp.ok ? '端点可访问，认证与路径基本正常' : '端点已响应，请根据状态码判断认证或路径是否正确')
-        : '端点未按预期响应，请检查 Base URL 和代理前缀',
+      message: expectedAliyunProbeError
+        ? '阿里云视频端点可达。测试为避免创建计费任务，故意发送空请求体；缺少 model 是预期响应，尚未验证 API Key 或模型能否生成视频。'
+        : reachable
+          ? (resp.ok ? '端点可访问，认证与路径基本正常' : '端点已响应，请根据状态码判断认证或路径是否正确')
+          : '端点未按预期响应，请检查 Base URL 和代理前缀',
       response_preview: text.slice(0, 240),
     }
     if (reachable) {

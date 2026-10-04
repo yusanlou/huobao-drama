@@ -39,6 +39,7 @@ export default defineNuxtConfig({
   vite: {
     server: {
       proxy: {
+        '/mcp-extension': { target: process.env.HUOBAO_MCP_PROXY_TARGET || 'http://127.0.0.1:5680', changeOrigin: true },
         '/api': { target: 'http://localhost:5679', changeOrigin: true },
         '/static': { target: 'http://localhost:5679', changeOrigin: true },
       },

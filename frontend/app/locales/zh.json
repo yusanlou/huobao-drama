@@ -921,5 +921,40 @@
         "desc": "点这个「?」按钮可重新播放本页引导。祝创作顺利！"
       }
     }
+  },
+  "mcp": {
+    "title": "MCP 服务",
+    "description": "让支持 MCP 的 AI 工具调用火宝，复用现有项目、素材和制作流程。",
+    "connection": "扩展连接",
+    "offline": "扩展未连接",
+    "connected": "已连接",
+    "refresh": "刷新",
+    "startHint": "首次使用请先在项目根目录安装扩展依赖：npm install --prefix extensions/huobao-mcp。然后运行：",
+    "enable": "启用 MCP 服务",
+    "switchHint": "关闭后拒绝新调用并暂停后续步骤。已提交给火宝的任务仍可能继续修改作品；重新开启后，旧运行需手动恢复。",
+    "backend": "火宝服务端",
+    "health": "服务端状态",
+    "healthy": "连接正常",
+    "unhealthy": "服务端不可达，请检查火宝服务是否运行。",
+    "endpoint": "MCP 地址",
+    "copyConfig": "复制连接信息",
+    "configHint": "包含 MCP 地址及访问凭据。请按 AI 客户端的配置格式填写，勿公开分享。支持 Streamable HTTP，不依赖 Codex。",
+    "copied": "连接信息已复制，包含访问凭据。",
+    "runs": "近期制作运行",
+    "noRuns": "暂无运行。在 AI 工具中连接 MCP 后可创建制作计划。",
+    "project": "项目",
+    "resume": "恢复",
+    "stepsDone": "步骤完成",
+    "inflight": "已提交的任务仍在火宝执行。",
+    "attentionHint": "此运行需要核对失败或不明确的提交结果。请让 AI 工具读取运行记录，再针对剩余目标制定新计划。",
+    "conflict": "开关已被其他窗口修改，请根据刷新后的状态重试。",
+    "disabled": "MCP 已关闭。",
+    "operationFailed": "操作未完成，请检查连接并重试。",
+    "states": {
+      "running": "运行中",
+      "paused": "已暂停",
+      "needs_attention": "需要处理",
+      "completed": "已完成"
+    }
   }
 }

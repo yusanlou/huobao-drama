@@ -72,6 +72,8 @@
           </section>
         </div>
 
+        <McpSettings v-if="tab === 'mcp'" />
+
         <!-- ===== AI 服务配置 ===== -->
         <div v-if="tab === 'ai'" class="settings-scroll">
           <div class="settings-head">
@@ -674,6 +676,7 @@
 <script setup>
 import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
+import McpSettings from '~/components/McpSettings.vue'
 import { toast } from 'vue-sonner'
 import { toastError } from '~/composables/useToast'
 import { useI18n } from 'vue-i18n'
@@ -691,6 +694,7 @@ const showBrandImage = ref(true)
 const tab = ref('ai')
 const baseTabs = computed(() => [
   { id: 'ai', label: t('settings.tabs.ai'), icon: Cpu },
+  { id: 'mcp', label: t('mcp.title'), icon: Bot },
   { id: 'general', label: t('settings.tabs.general'), icon: Languages },
   { id: 'styles', label: t('settings.tabs.styles'), icon: Palette },
   { id: 'agents', label: t('settings.tabs.agents'), icon: Bot },

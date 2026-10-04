@@ -921,5 +921,40 @@
         "desc": "この「?」ボタンでこのページのガイドを再表示できます。良い制作を！"
       }
     }
+  },
+  "mcp": {
+    "title": "MCP サービス",
+    "description": "MCP 対応の AI ツールから火宝のプロジェクト、素材、制作機能を利用できます。",
+    "connection": "拡張機能への接続",
+    "offline": "未接続",
+    "connected": "接続済み",
+    "refresh": "更新",
+    "startHint": "最初にプロジェクトのルートで npm install --prefix extensions/huobao-mcp を実行し、続いて以下を実行してください。",
+    "enable": "MCP サービスを有効化",
+    "switchHint": "無効にすると新しい呼び出しと後続ステップが停止します。送信済みの処理は作品を更新する場合があります。再度有効にした後、以前の処理は手動で再開してください。",
+    "backend": "火宝サーバー",
+    "health": "接続状態",
+    "healthy": "正常",
+    "unhealthy": "サーバーに接続できません。火宝が起動しているか確認してください。",
+    "endpoint": "MCP URL",
+    "copyConfig": "接続情報をコピー",
+    "configHint": "MCP URL と認証情報が含まれます。AI クライアントの形式に合わせて設定し、公開しないでください。Streamable HTTP に対応し、Codex には依存しません。",
+    "copied": "認証情報を含む接続情報をコピーしました。",
+    "runs": "最近の制作処理",
+    "noRuns": "まだ処理はありません。AI ツールを MCP に接続して制作計画を作成してください。",
+    "project": "プロジェクト",
+    "resume": "再開",
+    "stepsDone": "ステップ完了",
+    "inflight": "送信済みの処理は火宝で実行中です。",
+    "attentionHint": "失敗または結果不明の処理を確認してください。AI ツールで履歴を読み、未完了の対象のみを再計画してください。",
+    "conflict": "別のウィンドウで設定が変更されました。更新後の状態を確認してください。",
+    "disabled": "MCP は無効です。",
+    "operationFailed": "操作に失敗しました。接続を確認して再試行してください。",
+    "states": {
+      "running": "実行中",
+      "paused": "一時停止",
+      "needs_attention": "確認が必要",
+      "completed": "完了"
+    }
   }
 }

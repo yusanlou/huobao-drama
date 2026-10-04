@@ -8,6 +8,9 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:desktop": "cd desktop && npm run dev",
     "build:frontend": "cd frontend && npm run generate",
-    "dist": "cd desktop && npm run dist"
+    "dist": "cd desktop && npm run dist",
+    "dev:mcp": "npm --prefix extensions/huobao-mcp run dev",
+    "build:mcp": "npm --prefix extensions/huobao-mcp run build",
+    "test:mcp": "npm --prefix extensions/huobao-mcp test"
   }
 }
