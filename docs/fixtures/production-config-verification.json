@@ -1,0 +1,131 @@
+{
+  "verified_at": "2026-10-04T13:45:33.941Z",
+  "base": "http://localhost:5679/api/v1",
+  "content_language": {
+    "language": "zh"
+  },
+  "configuration_count": 24,
+  "backend_source_files_unchanged": 59,
+  "results": [
+    {
+      "path": "/prompts/script_rewriter?lang=zh",
+      "sha256": "3c5e3f428d4a7d89a52464b50acd4d41ce254244b0b9b7020a7623bc8070ca4e",
+      "verified": true
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=zh",
+      "sha256": "93431bff0b858a2ac19f0b527fc2da486875af6cb93420974f327cbf2c410ab7",
+      "verified": true
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=zh",
+      "sha256": "92816c091d5187eea0566d6bf3800f86f0b92419912673de667b3c10de962e10",
+      "verified": true
+    },
+    {
+      "path": "/skills/script-rewriter?lang=zh",
+      "sha256": "8e5bf6cffcde7be15f0d63ec1f7e0977d1e66c47a103cedbdd2f0ef26eeefc8e",
+      "verified": true
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=zh",
+      "sha256": "307fdc1a55528bbaa27ddac5e7a10ccfb1a46374ebbd72a94196d7048c3e6cf6",
+      "verified": true
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=zh",
+      "sha256": "7cd675b0545b1b3290b55c6b4cb3461234b106c1247514a80fc9a6b3daba766d",
+      "verified": true
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=en",
+      "sha256": "96d0754bcfa8884f4f3e3faa471915e3b99b812d01f1d9b564dcfbd4238f71a6",
+      "verified": true
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=en",
+      "sha256": "35b5a89d54489c3f7fb8922cddbe0e3f0a91b55baa0f6d98babf805a0895b3e0",
+      "verified": true
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=en",
+      "sha256": "222cd24dab4a480caf740ff4a956155c026e2467b58725bb3ed11fee11c0b4d7",
+      "verified": true
+    },
+    {
+      "path": "/skills/script-rewriter?lang=en",
+      "sha256": "e582866cf7dbed79ee4422c080ac228b33c2949c96b3278f2c918fc9506f515f",
+      "verified": true
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=en",
+      "sha256": "37d8d61b76015253ddf0d58a54a2bb2213d7534b6944c7a190d9b2998aa859f2",
+      "verified": true
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=en",
+      "sha256": "8e01062f14e828b9f329400d627961ea3bf8ba226139fcc5eb2e91da4213c00b",
+      "verified": true
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=ja",
+      "sha256": "fabd337a80dff78f66e0fcb64da572e4b563341bc8d0e02a47645caa4fe3f083",
+      "verified": true
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=ja",
+      "sha256": "165d59e61c14e785e8573c182f574cab58f9ece22917abfaebb9c827c9ddbc96",
+      "verified": true
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=ja",
+      "sha256": "2019dab8f41c825adb373c88a9fd0f80df4b6afe8209348823289f9d401cc7dd",
+      "verified": true
+    },
+    {
+      "path": "/skills/script-rewriter?lang=ja",
+      "sha256": "a8f6286d4254ff3a1e9ad849a199b361fa9c2b6846cd775c4863199542a13525",
+      "verified": true
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=ja",
+      "sha256": "1e2d64f4bcf48f4582ce70e817add123ea1a8deafeaa4694a3655cd0606f5edf",
+      "verified": true
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=ja",
+      "sha256": "4254481b0bc3555c89f445b70a473fdca46afbd02d28d597ad1f3aa63899117e",
+      "verified": true
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=ko",
+      "sha256": "59a5eafa5a149978f4846f35aa3cdf4f0c4311daae10e3cebffc9fad20a67723",
+      "verified": true
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=ko",
+      "sha256": "22eacf7a9e359aac44fee32b8f9e4be348708403b88ad895e32bee61095d485c",
+      "verified": true
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=ko",
+      "sha256": "bd9a661f55242a9cfe842e146fa9e721b09671f4ed087b97bbcc381cb666f4e9",
+      "verified": true
+    },
+    {
+      "path": "/skills/script-rewriter?lang=ko",
+      "sha256": "f984c1a2b1be2ce99bff70667f27d0a4675f06ec4c1bb648d69af7a0645df63c",
+      "verified": true
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=ko",
+      "sha256": "ef8cc59d49825abe0e4aaea13e1c4c8ff613b510c9312d8aecbe4ce93528fe8d",
+      "verified": true
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=ko",
+      "sha256": "5f982fdb928a8688d735f93b81b6d82fc92fb08119cbfb65c04efaea44d0ddaa",
+      "verified": true
+    }
+  ]
+}

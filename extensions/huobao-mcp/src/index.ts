@@ -3,7 +3,10 @@ import { createExtension } from './server.js'
 const port = Number(process.env.HUOBAO_MCP_PORT || 5680)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid HUOBAO_MCP_PORT')
 const host = process.env.HUOBAO_MCP_HOST || '127.0.0.1'
+const agentTimeout = Number(process.env.HUOBAO_MCP_AGENT_TIMEOUT_MS || 300_000)
+if (!Number.isInteger(agentTimeout) || agentTimeout < 1000 || agentTimeout > 3_600_000) throw new Error('Invalid HUOBAO_MCP_AGENT_TIMEOUT_MS')
 const app = createExtension({
+  agentTimeout,
   dataDir: process.env.HUOBAO_MCP_DATA_DIR || fileURLToPath(new URL('../.data', import.meta.url)),
   apiBase: process.env.HUOBAO_API_BASE_URL || 'http://localhost:5679/api/v1',
   publicUrl: process.env.HUOBAO_MCP_PUBLIC_URL || `http://localhost:${port}/mcp`,

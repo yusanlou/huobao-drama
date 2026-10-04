@@ -3,69 +3,22 @@ name: video-prompt
 description: 動画プロンプト仕様 — 絵コンテパラグラフの内容に基づき、時間で区間分けされ、区間内でカット切り替え可能な動画生成プロンプトを生成する
 ---
 
-# 動画プロンプト（絵コンテパラグラフ → video_prompt）
+以下は制作規則です。出力言語はシステムの全体コンテンツ言語設定に従います。英語の規則をそのまま作品本文に出力しないでください。
 
-1つの絵コンテパラグラフの description（【镜头N】のサブカット構造とセリフ／ナレーションを含む）／ atmosphere ／ duration に基づき、AI動画生成を駆動する `video_prompt` を生成する。**1つの絵コンテパラグラフ = 1本の8〜15秒の動画で、内部でのカット切り替えは許可される**：区間と区間の間は異なるカット（ショットサイズ／アングル／被写体の変更）でよく、ハードカットでつなぐ。ただし**全編を通じてシーンをまたがず**、フラッシュバックもしない。
+# Video prompt direction
 
-## フォーマット
+Inputs are the specified storyboard's native fields, requirements and bound assets; output only its video_prompt. Read data first; do not infer the scene from its number. Follow global content language while keeping field names and IDs stable.
 
-`video_prompt` の**1行目は情報ヘッダー**：この動画にどの人物とシーンが出るかを先に紹介し、その後に時間区間を続ける。人物・シーンは一律に @ 参照を使う（生成時に対応する参照画像マーカーへ置き換えられ、動画モデルがまず「誰」と「どこ」を照合できるようにする）。
+Establish subjects and setting, initial framing and light, causal action order and ending state, necessary photography/color/material, literal sound, and constraints essential to the shot. Event-based timestamps are optional. Do not impose three-second slots or pad with unrelated action. State what changes, how and when it ends. Use only motivated primary camera motion.
 
-```
-登場人物：@小明、@小红。シーン：@カフェ。
-0-3秒：@カフェ、近景の固定ショット。@小明は俯いてスマホを見て、指先で何度もテーブルを叩き、表情は不安そう。
-3-6秒：入口の全景に切り替わり、ドアベルが鳴る。@小红がドアを押して入り、一陣の冷たい風を連れてくる。
-6-9秒：ミディアムショットに切り替わる。@小红が微笑みながら小明のそばに歩み寄って座る。小明は言う：「やっと来たね。」
-```
+For text-to-video establish subjects, space and appearance. For image-to-video use references as appearance anchors and focus on action, camera change and final state rather than repeating a still description. @names must be bound subjects; do not invent numbered image references. Offscreen narrators without images need no image reference.
 
-情報ヘッダーのルール：
-- その絵コンテパラグラフに実際に登場する人物と、紐付けられたシーンだけを列挙する。登場しないものを列挙しない
-- 小道具がはっきり登場する場合は情報ヘッダーに追記できる（例：`。小道具：@手紙`）
-- 情報ヘッダーは独立した1行で、句点で終わる。その後に時間区間が続く
+Photography includes framing, camera height, perspective, screen direction, purpose and endpoint of motion. Color includes dominant/supporting colors, saturation and tonal separation. Lighting includes direction, softness, occlusion and the cause of change. Material includes visible rough diffuse reflection, localized wet highlights, cloth tension or grain. Avoid empty cinematic/high-definition/scary labels and unsupported elastic moduli, friction coefficients or renderer settings.
 
-3秒を1区間とし、各区間を1行ずつ改行で区切る。時間範囲は連続してつながる（重複なし、欠落なし）。
+Establish ordinary physics first: a stationary object and light do not make a normal shadow slide independently. For intentional anomalies, specify the transition from a normal contour to a concrete impossible shape, its edges, and whether the object itself changes. The uncanny effect must be observable.
 
-## 絵コンテの描写とのマッピング
+Write sound as Speaker/Narrator: “exact original words”, with sequence and necessary pauses. Match description completely and leave room for the final sentence. “Describe the background” is not speech text. Do not add unintelligible muttering to silent characters. speech_mode=none means no speech. bgm_prompt/sound_effect do not create separate audio tracks. Insufficient time requires adjusting inputs; extreme speech speed is not a general solution.
 
-`description` が video_prompt の唯一の内容源である（画面、動作、セリフ、ナレーションはすべてその中にある）。変換ルール：
+Do not paste the style prefix that the server already injects. Legible titles, file numbers and captions are post-production graphics. Check subjects/references, speech, actions, light, continuity and time, then save only the requested video_prompt.
 
-- `description` の各 `【镜头N】` を**連続した1〜2個の3秒区間**にマッピングする。順序一致、漏れなし、マージなし、サブカットの新規追加なし
-- セリフ／ナレーションは対応する `【镜头N】` 内の「キャラクター名は言う：「…」」「ナレーション：…」から抽出し、そのサブカットにマッピングされた区間へ配分する。**description 以外の新しいセリフを創作しない**
-- 画面の動作は `description` を基準とする；`atmosphere` は各区間の光線、色調、雰囲気の描写を補うためだけに使う
-
-## 区間内の構造
-
-各区間はこの順序で内容を組み立てる（内容のない項目は省略してよいが、動作／画面は必須）：
-
-**時間範囲 ＋ シーンの@参照 ＋ ショットサイズ／カメラワーク ＋ キャラクターの@参照＋主体の動作・表情 ＋ セリフ／ナレーション ＋ 雰囲気と光線**
-
-- **最初の区間は必ず空間を確立する**：シーン ＋ カメラ位置 ＋ キャラクターの位置と状態で、観客が一目で「どこか、誰を見るか」を把握できるようにする
-- **カット切り替え**：切り替え後の区間の冒頭は「切り替わる／戻る」などの接続語を使い、ショットサイズと主体を改めて示す。カットの切り替え位置は絵コンテ `description` の `【镜头N】` 構造に揃える
-- **ショットサイズ／カメラワーク**：各区間1つのショット状態（近景／ミディアム／全景／クローズアップ；固定／プッシュイン／プルバック／パン／フォロー）。1つのサブカット内ではカメラワークは連続し、カット切り替え後に変更できる
-- **動作**：各区間1つの主な動作。動詞は具体的で目に見えるものにする（歩く、振り返る、顔を上げる、握り締める、間を置く）
-- **感情はすべて目に見える描写に変換する**：「彼は悲しい／空気が張り詰めている」のような抽象語は使わず、「彼はうつむき、指がカップの縁を握り締め、呼吸が重くなる」と書く
-- **セリフ／ナレーション**：「キャラクター名は言う：「セリフ」」と書き、ナレーションは「ナレーション：内容」と書く。3秒で読み切れない長いセリフは複数区間に分割する。セリフのない区間には環境音／動作音を書いてよい（例：「機械が轟音を立て続けている」）
-
-## 参照ルール
-
-- `@シーン名` — シーンの参照。名前はシーンリストの場所と完全に一致させること
-- `@キャラクター名` — キャラクターの参照。名前はキャラクターリストの名前と完全に一致させること
-- `@小道具名` — 小道具の参照。名前は小道具リストの名前と完全に一致させること。小道具が画面内で明確に見える、使われる、またはクローズアップされるときに参照する
-- 生成時に `@名前` は対応する参照画像マーカーへ自動置き換えされる（例：`@小明` → `@图片1小明`）。そのため名前は正確に一致させ、略称や余分な記号を付けない
-- **各区間に少なくとも1つの @ 参照で画面をアンカーする**。キャラクターが登場する区間では必ずそのキャラクターを @ する。その絵コンテパラグラフに紐付けられたシーン／キャラクター／小道具だけを参照する
-
-## タイムラインのルール
-
-- 区間数 = 絵コンテパラグラフの duration ÷ 3秒（切り上げ）。各区間の時間範囲の合計はパラグラフの総尺と等しくなければならない
-- 内容のリズム：最初の区間で確立 → 中間の区間で動作／衝突を推進 → 最後の区間で結果または感情のポイントに落とす
-
-## 禁止事項
-
-- シーンをまたぐ切り替え、フラッシュバック（1つのパラグラフは1つのシーン内でのみ起こる）
-- リスト外のシーン／キャラクター名の参照
-- 抽象的な心理描写、文学的な比喩（モデルは目に見える画面だけを認識する）
-- セッションの言語指令に合致しない言語
-
-## 保存
-
-`update_storyboard` を呼び出して、その絵コンテパラグラフの `video_prompt` フィールドのみを更新する。他のフィールドは変更せず、話全体を再分解しない。
+Speech budget check: use approximately 3–4 Chinese characters per second or 2–3 English words per second as conservative planning estimates only, with additional breathing, action and final-sentence margin. These are not measured delivery speeds. If exact speech cannot fit, adjust this and neighboring segment budgets; do not shrink speech merely to make the total add up or silently alter approved lines. Preserve complete literal speech in the prompt; extreme speed is not a solution.

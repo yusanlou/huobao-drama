@@ -7,7 +7,7 @@ import { Workbench } from './tools.js'
 
 export interface Options {
   dataDir: string; apiBase: string; origins: string[]; publicUrl: string
-  timeout?: number; pollMs?: number
+  timeout?: number; agentTimeout?: number; pollMs?: number
 }
 const equal = (a: string, b: string) => {
   const left = Buffer.from(a), right = Buffer.from(b)
@@ -33,7 +33,7 @@ export function createExtension(options: Options) {
   requireValue(['http:', 'https:'].includes(upstream.protocol) && !upstream.username && !upstream.password && !upstream.search && !upstream.hash && upstream.pathname === '/api/v1', 'CONFIG', 'HUOBAO_API_BASE_URL must be an HTTP(S) URL ending in /api/v1, without credentials or query.')
   requireValue(['http:', 'https:'].includes(publicUrl.protocol) && !publicUrl.username && !publicUrl.password && !publicUrl.search && !publicUrl.hash, 'CONFIG', 'Invalid public MCP URL.')
   const ledger = new Ledger(options.dataDir, apiBase)
-  const api = new Huobao(apiBase, options.timeout)
+  const api = new Huobao(apiBase, options.timeout, options.agentTimeout)
   const workbench = new Workbench(ledger, api)
   const transports = new Set<StreamableHTTPServerTransport>()
   const origins = new Set(options.origins)
@@ -104,10 +104,12 @@ export function createExtension(options: Options) {
     async close() {
       ledger.stopping = true
       clearInterval(timer)
+      workbench.calls.stop()
       // Stop new dispatch while preserving the user's persisted enable preference.
       server.close()
       await Promise.all([...transports].map(t => t.close()))
       await workbench.production.serial(async () => {})
+      workbench.uploads.close()
       ledger.close()
     },
   }

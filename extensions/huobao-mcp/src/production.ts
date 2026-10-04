@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Fault, failure, hash, Huobao, Ledger, now, requireValue, type Row } from './core.js'
+import { inspectVideoInput } from '../../../shared/production.mjs'
 
 export const capabilities = { atomic_batch: false, server_cas: false, provider_cancel: false, automatic_artifact_writeback: true }
 export class Production {
@@ -33,6 +34,11 @@ export class Production {
     }
   }
   async prepare(projectId: number, episodeId: number, action: Row) {
+    if (action.kind === 'storyboard_video') {
+      const preview = await this.inspectVideo(projectId, episodeId, action)
+      return { path: '/tasks', body: preview.body, fingerprint: preview.fingerprint, overwrites_current: true, preview }
+    }
+    requireValue(action.video_options === undefined, 'INVALID_INPUT', 'video_options apply only to storyboard_video.')
     const c = await this.api.context(projectId, episodeId)
     if (action.kind === 'merge') {
       const ids: number[] = action.storyboard_ids || c.storyboards.map((s: Row) => s.id)
@@ -45,11 +51,10 @@ export class Production {
       const route = { character_image: 'characters', scene_image: 'scenes', prop_image: 'props' }[action.kind as string]!
       const asset = (c as Row)[route].find((a: Row) => a.id === action.target_id)
       requireValue(asset, 'PRECONDITION', 'Asset must be linked to the selected episode.')
-      return { path: `/${route}/${action.target_id}/generate-image`, body: { episode_id: episodeId, config_id: action.config_id ?? c.episode.image_config_id, model: action.model }, fingerprint: hash([asset, c.project.style, c.episode.image_config_id]), overwrites_current: true }
+      return { path: `/${route}/${action.target_id}/generate-image`, body: { episode_id: episodeId, config_id: action.config_id ?? c.episode.image_config_id, model: action.model, text_model: action.text_model, text_config_id: action.text_config_id }, fingerprint: hash([asset, c.project.style, c.episode.image_config_id]), overwrites_current: true }
     }
     const shot = c.storyboards.find((s: Row) => s.id === action.target_id)
     requireValue(shot, 'PRECONDITION', 'Storyboard does not belong to this episode.')
-    const video = action.kind === 'storyboard_video'
     const bound: Row[] = [
       ...c.scenes.filter((s: Row) => s.id === shot.scene_id),
       ...c.characters.filter((s: Row) => (shot.character_ids || []).includes(s.id)),
@@ -65,17 +70,22 @@ export class Production {
       names.set(name, index + 1)
     }
     requireValue(references.length <= 9, 'REFERENCE_LIMIT', 'This initial adapter supports at most nine references; split or simplify the storyboard.')
-    let prompt = String(video ? shot.video_prompt || '' : shot.image_prompt || shot.description || '')
-    if (video) prompt = prompt.replace(/@([^\s@]+)/g, (match, raw: string) => {
-      const name = [...names.keys()].sort((a, b) => b.length - a.length).find(n => raw.startsWith(n))
-      requireValue(name, 'UNKNOWN_REFERENCE', `Unresolved mention: ${match}. Use a bound asset name.`)
-      return `@图片${names.get(name)}${name}${raw.slice(name.length)}`
-    })
-    requireValue(prompt.trim() || (video && references.length), 'PRECONDITION', 'Add a generation prompt or video references first.')
-    const body: Row = { type: video ? 'video' : 'image', storyboard_id: shot.id, drama_id: projectId, prompt, model: action.model, config_id: action.config_id ?? (video ? c.episode.video_config_id : c.episode.image_config_id) }
-    if (video) Object.assign(body, { reference_image_urls: references, aspect_ratio: c.project.aspect_ratio || '16:9', duration: Number(shot.duration || 10), resolution: c.episode.resolution, generate_audio: true })
-    else Object.assign(body, { reference_images: references, size: c.project.aspect_ratio === '9:16' ? '1080x1920' : '1920x1080' })
+    const prompt = String(shot.image_prompt || shot.description || '')
+    requireValue(prompt.trim(), 'PRECONDITION', 'Add an image prompt first.')
+    const body: Row = { type: 'image', storyboard_id: shot.id, drama_id: projectId, prompt, model: action.model, config_id: action.config_id ?? c.episode.image_config_id, reference_images: references, size: c.project.aspect_ratio === '9:16' ? '1080x1920' : '1920x1080' }
     return { path: '/tasks', body, fingerprint: hash([shot, bound, c.project.style, c.project.aspect_ratio, c.episode.image_config_id, c.episode.video_config_id, c.episode.resolution]), overwrites_current: true }
+  }
+  async inspectVideo(projectId: number, episodeId: number, action: Row): Promise<Row> {
+    const c = await this.api.context(projectId, episodeId)
+    const shot = c.storyboards.find((s: Row) => s.id === action.target_id)
+    requireValue(shot, 'NOT_FOUND', 'Storyboard does not belong to this episode.')
+    const [configs, styles] = await Promise.all([this.api.call('/ai-configs'), this.api.call('/style-presets')])
+    const configId = action.config_id ?? c.episode.video_config_id
+    const config = configs.find((r: Row) => configId ? r.id === configId : r.service_type === 'video' && r.is_active)
+    requireValue(config?.service_type === 'video', 'PRECONDITION', 'Select an existing video configuration.')
+    const style = styles.find((r: Row) => r.value === c.project.style && r.is_active)
+    const preview = inspectVideoInput({ ...c, shot, config, options: { ...action.video_options, model: action.model }, style_prompt: style?.prompt || '' })
+    return { ...preview, project_style: style ? { name: style.name, value: style.value, prompt: style.prompt } : null, fingerprint: hash([shot, c.characters, c.scenes, c.props, c.episode.description, c.episode.resolution, c.project.style, c.project.aspect_ratio, config, style]) }
   }
   async plan(projectId: number, episodeId: number, actions: Row[]) {
     const steps = []

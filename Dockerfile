@@ -9,6 +9,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN node -e "const fs=require('fs');const l=JSON.parse(fs.readFileSync('package-lock.json'));for(const p of Object.values(l.packages||{}))delete p.resolved;fs.writeFileSync('package-lock.json',JSON.stringify(l,null,2))" \
   && npm ci --no-audit --no-fund --registry=https://registry.npmjs.org
 COPY frontend/ ./
+COPY shared/ /build/shared/
 RUN npm run generate
 
 # ===== 后端构建：安装依赖（含原生模块编译） =====

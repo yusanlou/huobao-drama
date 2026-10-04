@@ -3,69 +3,22 @@ name: video-prompt
 description: 비디오 프롬프트 규범 — 스토리보드 구간 내용을 바탕으로 시간대별로 구간을 나누고 구간 내 컷 전환이 가능한 비디오 생성 프롬프트를 생성
 ---
 
-# 비디오 프롬프트(스토리보드 구간 → video_prompt)
+다음은 제작 규칙입니다. 작품의 언어는 시스템의 전역 콘텐츠 언어 설정을 따릅니다. 영어 규칙 자체를 작품 본문에 출력하지 마세요.
 
-단일 스토리보드 구간의 description(【镜头N】 서브 컷 구조와 대사/내레이션 포함)/ atmosphere / duration 을 바탕으로, AI 비디오 생성을 구동하는 `video_prompt` 를 생성합니다. **하나의 스토리보드 구간 = 8-15초짜리 비디오 한 편이며, 내부에서 컷 전환이 허용됩니다**: 구간과 구간 사이는 서로 다른 컷(화면 크기/앵글/대상 변경)일 수 있고 하드 컷으로 연결합니다; 단 **전체 구간이 장면을 넘나들지 않으며**, 플래시백도 없습니다.
+# Video prompt direction
 
-## 형식
+Inputs are the specified storyboard's native fields, requirements and bound assets; output only its video_prompt. Read data first; do not infer the scene from its number. Follow global content language while keeping field names and IDs stable.
 
-`video_prompt` 의 **첫 줄은 정보 헤더**입니다: 이 비디오에 어떤 인물과 장면이 있는지 먼저 소개하고, 그다음 시간대별 구간을 이어 씁니다. 인물과 장면은 모두 @ 로 참조합니다(생성 시 해당 참조 이미지 마커로 치환되어, 비디오 모델이 먼저 "누구"인지와 "어디"인지를 맞추도록 함).
+Establish subjects and setting, initial framing and light, causal action order and ending state, necessary photography/color/material, literal sound, and constraints essential to the shot. Event-based timestamps are optional. Do not impose three-second slots or pad with unrelated action. State what changes, how and when it ends. Use only motivated primary camera motion.
 
-```
-출연 인물: @小明, @小红; 장면: @카페.
-0-3초: @카페, 근경 고정 컷. @小明이 휴대폰을 내려다보며 손가락으로 탁자를 반복해 두드리고, 표정이 불안하다.
-3-6초: 문 쪽 전경으로 전환. 문벨이 울리고 @小红이 문을 밀고 들어오며 찬바람을 몰고 온다.
-6-9초: 미디엄샷으로 되돌아온다. @小红이 미소 지으며 小明에게 다가가 앉는다. 小明이 말한다: 「드디어 왔네.」
-```
+For text-to-video establish subjects, space and appearance. For image-to-video use references as appearance anchors and focus on action, camera change and final state rather than repeating a still description. @names must be bound subjects; do not invent numbered image references. Offscreen narrators without images need no image reference.
 
-정보 헤더 규칙:
-- 해당 스토리보드 구간에 실제로 출연하는 인물과 바인딩된 장면만 나열하고, 출연하지 않는 것은 나열하지 마세요
-- 소품이 뚜렷이 등장하면 정보 헤더에 덧붙일 수 있습니다(예: `; 소품: @편지`)
-- 정보 헤더는 한 줄로 독립시키고 마침표로 끝내며, 그다음에 시간대별 구간이 옵니다
+Photography includes framing, camera height, perspective, screen direction, purpose and endpoint of motion. Color includes dominant/supporting colors, saturation and tonal separation. Lighting includes direction, softness, occlusion and the cause of change. Material includes visible rough diffuse reflection, localized wet highlights, cloth tension or grain. Avoid empty cinematic/high-definition/scary labels and unsupported elastic moduli, friction coefficients or renderer settings.
 
-3초를 한 구간으로 하고, 구간마다 한 줄씩 줄바꿈으로 구분하며, 시간 범위가 연속으로 이어져야 합니다(겹침 없음, 공백 없음).
+Establish ordinary physics first: a stationary object and light do not make a normal shadow slide independently. For intentional anomalies, specify the transition from a normal contour to a concrete impossible shape, its edges, and whether the object itself changes. The uncanny effect must be observable.
 
-## 스토리보드 묘사와의 매핑
+Write sound as Speaker/Narrator: “exact original words”, with sequence and necessary pauses. Match description completely and leave room for the final sentence. “Describe the background” is not speech text. Do not add unintelligible muttering to silent characters. speech_mode=none means no speech. bgm_prompt/sound_effect do not create separate audio tracks. Insufficient time requires adjusting inputs; extreme speech speed is not a general solution.
 
-`description` 은 video_prompt 의 유일한 내용 출처입니다(화면, 동작, 대사, 내레이션이 모두 그 안에 있음). 변환 규칙:
+Do not paste the style prefix that the server already injects. Legible titles, file numbers and captions are post-production graphics. Check subjects/references, speech, actions, light, continuity and time, then save only the requested video_prompt.
 
-- `description` 의 각 `【镜头N】`은 **1-2개의 연속된 3초 구간**에 매핑합니다. 순서 일치, 누락 없음, 병합 없음, 새 서브 컷 추가 없음
-- 대사/내레이션은 해당 `【镜头N】` 안의 「캐릭터명이 말한다: 「…」」「내레이션: …」에서 추출해 해당 서브 컷이 매핑된 구간에 배분합니다; **description 밖의 새 대사를 창작하지 마세요**
-- 화면 동작은 `description` 을 기준으로 하고, `atmosphere` 는 각 구간의 조명, 색조, 분위기 묘사를 보충하는 데만 사용합니다
-
-## 구간 내 구조
-
-각 구간은 이 순서로 내용을 조직합니다(내용이 없는 항목은 생략 가능하지만, 동작/화면은 반드시 있어야 함):
-
-**시간 범위 + 장면 @참조 + 화면 크기/카메라 무빙 + 캐릭터 @참조 + 주체 동작·표정 + 대사/내레이션 + 분위기 조명**
-
-- **첫 구간은 반드시 공간을 설정해야 함**: 장면 + 카메라 위치 + 캐릭터의 위치와 상태로, 관객이 한눈에 어디인지, 누구를 보는지 알게 합니다
-- **컷 전환**: 전환 후 구간의 시작에 "~로 전환", "~로 되돌아온다" 같은 연결어를 쓰고, 화면 크기와 주체를 새로 밝힙니다; 컷 전환 지점은 스토리보드 `description` 의 `【镜头N】` 구조에 맞춰야 합니다
-- **화면 크기/카메라 무빙**: 구간마다 하나의 컷 상태(근경/미디엄샷/전경/클로즈업; 고정/푸시인/풀백/팬/팔로우); 하나의 서브 컷 내에서는 무빙이 연속되고, 컷 전환 후에는 무빙 방식을 바꿀 수 있습니다
-- **동작**: 구간마다 하나의 주된 동작. 동사는 구체적이고 보이는 것으로 씁니다(걷기, 몸 돌리기, 고개 들기, 움켜쥐기, 멈칫하기)
-- **감정은 모두 보이는 묘사로 전환**: "그는 슬프다/분위기가 긴장된다" 같은 추상적인 표현 대신, "그가 고개를 숙이고, 손가락이 컵 가장자리를 움켜쥐며, 숨이 거칠어진다"처럼 씁니다
-- **대사/내레이션**: 「캐릭터명이 말한다: 「대사」」로 쓰고, 내레이션은 「내레이션: 내용」으로 씁니다; 3초 안에 다 말할 수 없는 긴 대사는 여러 구간으로 나눕니다; 대사가 없는 구간은 환경음/동작음을 쓸 수 있습니다(예: "기계가 계속 윙윙거린다")
-
-## 참조 규칙
-
-- `@장면명` — 장면 참조. 이름은 장면 목록의 장소와 완전히 일치해야 합니다
-- `@캐릭터명` — 캐릭터 참조. 이름은 캐릭터 목록의 이름과 완전히 일치해야 합니다
-- `@소품명` — 소품 참조. 이름은 소품 목록의 이름과 완전히 일치해야 합니다; 소품이 화면에 뚜렷이 보이거나, 사용되거나, 클로즈업될 때 참조합니다
-- 생성 시 `@이름` 이 해당 참조 이미지 마커로 자동 치환되므로(예: `@小明` → `@图片1小明`), 이름은 반드시 정확히 일치해야 하며 축약하거나 추가 기호를 붙이지 마세요
-- **모든 구간에 최소 하나의 @ 참조로 화면을 고정합니다**; 캐릭터가 출연하는 구간은 반드시 해당 캐릭터를 @ 합니다; 해당 스토리보드 구간에 이미 바인딩된 장면/캐릭터/소품만 참조합니다
-
-## 타임라인 규칙
-
-- 구간 수 = 스토리보드 구간 duration ÷ 3초(올림). 각 구간의 시간 범위를 합하면 반드시 구간 총 길이와 같아야 합니다
-- 내용 리듬: 첫 구간에서 설정 → 중간 구간에서 동작/갈등 추진 → 마지막 구간에서 결과 또는 감정 지점에 도달
-
-## 금지 사항
-
-- 장면을 넘나드는 전환, 플래시백(한 구간은 하나의 장면 안에서만 일어남)
-- 목록 밖의 장면/캐릭터명 참조
-- 추상적인 심리 묘사, 문학적 비유(모델은 보이는 화면만 인식함)
-- 세션 언어 지시와 맞지 않는 언어
-
-## 저장
-
-`update_storyboard` 를 호출해 해당 스토리보드 구간의 `video_prompt` 필드만 갱신합니다. 다른 필드를 변경하지 말고, 전체 화를 다시 분할하지 마세요.
+Speech budget check: use approximately 3–4 Chinese characters per second or 2–3 English words per second as conservative planning estimates only, with additional breathing, action and final-sentence margin. These are not measured delivery speeds. If exact speech cannot fit, adjust this and neighboring segment budgets; do not shrink speech merely to make the total add up or silently alter approved lines. Preserve complete literal speech in the prompt; extreme speed is not a solution.

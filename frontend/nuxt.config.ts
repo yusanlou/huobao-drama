@@ -1,6 +1,8 @@
 import { fileURLToPath } from 'node:url'
 
 export default defineNuxtConfig({
+  // Keep verification builds separate from a running development server.
+  buildDir: process.env.HUOBAO_FRONTEND_BUILD_DIR || '.nuxt',
   srcDir: 'app/',
   ssr: false,
   devtools: { enabled: false },
@@ -38,6 +40,7 @@ export default defineNuxtConfig({
   },
   vite: {
     server: {
+      fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), fileURLToPath(new URL('../shared', import.meta.url))] },
       proxy: {
         '/mcp-extension': { target: process.env.HUOBAO_MCP_PROXY_TARGET || 'http://127.0.0.1:5680', changeOrigin: true },
         '/api': { target: 'http://localhost:5679', changeOrigin: true },

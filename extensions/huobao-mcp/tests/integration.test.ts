@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { createExtension } from '../src/server.js'
+import { schemas } from '../src/tools.js'
 import { hash } from '../src/core.js'
 
 async function fixture() {
@@ -32,7 +33,8 @@ async function fixture() {
     const episode = { id: 2, title: 'Episode', content, image_config_id: 1, video_config_id: 2, resolution: '720p' }
     const project = { id: 1, title: 'Test project', episodes: [episode], characters, scenes, props, aspect_ratio: '16:9' }
     if (path === '/health') data = { status: 'ok' }
-    else if (path === '/ai-configs') data = [{ id: 1, name: 'test config', api_key: 'DO_NOT_LEAK', settings: '{"token":"DO_NOT_LEAK"}', service_type: 'image', model: ['test'] }]
+    else if (path === '/style-presets') data = []
+    else if (path === '/ai-configs') data = [{ id: 2, name: 'video', provider: 'volcengine', service_type: 'video', model: ['doubao-seedance-2-0-mini-260615'], is_active: true }, { id: 1, name: 'test config', api_key: 'DO_NOT_LEAK', settings: '{"token":"DO_NOT_LEAK"}', service_type: 'image', model: ['test'] }]
     else if (path === '/dramas/1') data = project
     else if (path === '/dramas') data = req.method === 'GET' ? { items: [project], pagination: { total: 1 } } : { id: ++nextId, ...body }
     else if (path === '/episodes/2' && req.method === 'PUT') content = body.content
@@ -101,7 +103,7 @@ test('standard MCP handshake, schema discovery and sanitized context work; disab
     await f.enable(true)
     const c = await f.client()
     try {
-      assert.equal((await c.listTools()).tools.length, 17)
+      assert.deepEqual((await c.listTools()).tools.map(t => t.name).sort(), Object.keys(schemas).sort())
       const context = await tool(c, 'hb_get_context', { project_id: 1, episode_id: 2 })
       assert.equal(context.characters[0].id, 3)
       assert.equal(JSON.stringify(context).includes('DO_NOT_LEAK'), false)
@@ -226,7 +228,7 @@ test('stdio bridge exposes the same tools and honors the HTTP service switch', a
       stderr: 'pipe',
     })
     await client.connect(transport)
-    assert.equal((await client.listTools()).tools.length, 17)
+    assert.deepEqual((await client.listTools()).tools.map(t => t.name).sort(), Object.keys(schemas).sort())
     assert.equal((await tool(client, 'hb_find_projects', {})).items[0].id, 1)
     await f.enable(false)
     assert.equal((await client.callTool({ name: 'hb_find_projects', arguments: {} })).isError, true)

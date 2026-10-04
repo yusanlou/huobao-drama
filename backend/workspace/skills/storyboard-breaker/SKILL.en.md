@@ -3,81 +3,18 @@ name: storyboard-breaker
 description: Professional rules for storyboard breakdown — splitting a script into storyboard segments that each carry multiple sub-shots
 ---
 
-# Storyboard Breakdown Guide
+# Storyboard direction
 
-## Core Definition: Storyboard Segment
+Break down complete events, not source word counts or fixed-length blocks. Read the episode script, description requirements and existing assets. Preserve literal speech. If it cannot fit, reorganize segments and identify needed script changes; never silently omit words or demand unintelligible speed.
 
-One storyboard = one **storyboard segment** = one video-generation task.
+Define the new information each segment gives the viewer. Use space establishment, action evidence, necessary reactions and results. No compulsory camera movement. Framing controls information; camera position respects axis and eyelines. Motion follows a subject or reveals information; otherwise a fixed camera is valid. Cut at action completion, attention shifts or revelations.
 
-- Each segment is **8-15 seconds** long and internally carries **2-4 sub-shots**
-- Cuts between sub-shots **are allowed**: change shot size, angle, or subject, joined with hard cuts
-- Sub-shots **never cross scenes**: a segment takes place in a single scene (`scene_id` is a segment-level binding)
-- Each sub-shot is 2-6 seconds, focused on one visual unit (one action, one reaction, one close-up)
+In description, specify starting positions, direction, speed changes, contact and ending state. Clarify interactions between subjects. In atmosphere, specify key-light direction, occlusion, softness, tonal separation, color tendency and visible texture. Describe observable material behavior: diffuse surfaces, wet highlights, fabric tension, illuminated dust. Do not pretend arbitrary physical constants are precise model controls. Use result as the next shot's continuity point.
 
-## Breakdown Process (Four Steps)
+Check positions, orientation, held objects, clothing and prop state, lights and action phase. Separate ordinary physics from intentional anomalies: establish a stable baseline, then specify where change begins, how it develops and where it ends. A bizarre effect must be visible, not merely called eerie.
 
-1. Call `read_storyboard_context` to read the script, characters, scenes, props, and existing storyboard summaries
-2. **Beat identification**: first identify the script's narrative beats — markers such as [Opening] [Trigger] [Climax] [Resolution], or narrative turning points (location changes, rule reveals, emotional eruptions, reversals). **Beat boundaries force a segment cut**; group sub-shots within the same beat into the same segment where possible, and do not scatter a causal chain (setup-event-reaction) across different segments
-3. **Total-volume anchoring**: target total duration = script character count ÷ 500 characters/minute; segment count ≈ target total duration ÷ 12 seconds, with ±20% tolerance. Do not significantly overshoot or undershoot
-4. **Split sub-shots within each segment**: cut sub-shots at action-change points, viewpoint-change points, and subject-change points; after filling in all fields for each segment, call `save_storyboards` to save them in one go
+duration is segment seconds. Speech and action can overlap; unrelated speakers should not overlap without intent. Check the total against a supplied target; otherwise label estimates. Descriptive prose is not spoken runtime. Never cut speech to meet a time limit.
 
-## Pacing-Tier Durations
+Bind actual episode assets only. Pure narrators need not appear. image_prompt describes a frame; video_prompt describes change, photography, literal sound and necessary constraints. Sound-intention fields are not audio generation. Use native save tools for full rebuilding and ID-scoped updates for local edits.
 
-Determine duration by the segment's function — do not use one size for all:
-
-| Segment type | Duration | Notes |
-|---|---|---|
-| Transition segment | 8-10 s | Traveling, empty shots, environment establishment, transitions |
-| Narrative segment | 10-15 s | Regular plot advancement, dialogue |
-| Payoff segment | 12-15 s | Close-ups, rule reveals, emotional eruptions, reversals; slower sub-shot pacing, a single sub-shot may hold for 4-6 s |
-
-## Dialogue Duration Floor (Hard Rule)
-
-**Segment duration ≥ total character count of dialogue and narration within the segment (the part written in description) ÷ 4.5 characters/second + 2 seconds of performance headroom**
-
-Dialogue that does not fit must be moved to the next segment; cramming unperformable dialogue into one segment is not allowed.
-
-## Shot Elements
-
-1. **Shot title**: a 3-5-character summary of the segment's core content (e.g. "Nightmare Awakening")
-2. **Time**: specific time of day + lighting description
-3. **Location**: full scene description + spatial layout + environmental details
-4. **Shot size**: the dominant shot size of the segment; for multi-size segments write a combination, e.g. "medium shot + close-up"
-5. **Angle**: eye-level / low angle / high angle / side / back
-6. **Camera move**: static / push-in / pull-back / pan / tracking / dolly (different sub-shots within a segment may differ)
-7. **Visual description** `description`: describe sub-shot by sub-shot as `【镜头1】…【镜头2】…` what the audience actually sees and hears — the visuals (who + specific action + body-language details + expression) come first; when a sub-shot has dialogue, write it inside the corresponding `【镜头N】` as "CharacterName says: "line"", and narration as "Narration: content"
-8. **Visual result** `result`: the immediate consequence at the end of the segment + visual details
-9. **Atmosphere** `atmosphere`: lighting + color tone + sound + overall mood
-10. **Duration** `duration`: total segment duration 8-15 seconds, and it must satisfy the dialogue duration floor
-11. **Scene binding**: if it can be matched to an existing scene, `scene_id` must be filled in
-12. **Character binding**: fill in `character_ids`, binding 0 to multiple characters involved in this segment
-13. **Prop binding**: fill in `prop_ids`, binding 0 to multiple key props appearing in this segment
-
-## Scene Binding Rules
-
-- Prefer the `scenes` returned by `read_storyboard_context`
-- When `location + time` can be clearly matched, the correct `scene_id` must be filled in
-- Do not fabricate scene IDs that do not exist
-- If the script content clearly falls within an existing scene, do not create a duplicate new scene description
-
-## Character Binding Rules
-
-- `character_ids` must be chosen from the character list returned by `read_storyboard_context`
-- A segment may have no characters, or may bind multiple characters
-- Any character with a clear appearance in the segment — seen, acting, or speaking — should be bound
-- Pure-environment segments, empty shots, and object close-ups may pass an empty array
-
-## Prop Binding Rules
-
-- `prop_ids` must be chosen from the prop list (`props`) returned by `read_storyboard_context`
-- When a prop is used by a character, handed over, shown in close-up, or clearly visible in frame and meaningful to the narrative, it must be bound to that segment
-- Prop close-up segments (without characters) should also bind the prop; `character_ids` may be empty
-- Do not bind background items or set dressing irrelevant to the plot; segments with no props pass an empty array
-- Bound props serve as reference images for video generation (white-background product shots), keeping the prop's appearance consistent across segments
-
-## Quality Requirements
-
-- `description` should be human-readable, describing sub-shot by sub-shot what the audience actually sees and hears; dialogue/narration is written directly inside the corresponding `【镜头N】`
-- `image_prompt` should highlight the single-frame composition, character appearance, environment, and lighting (corresponding to the segment's first sub-shot)
-- `bgm_prompt` and `sound_effect` may be concise phrases, but must not be as vague as just "tense" or "sad"
-- To make adjustments, call `update_storyboard` to modify the specific segment
+Speech budget check: use approximately 3–4 Chinese characters per second or 2–3 English words per second as conservative planning estimates only, with additional breathing, action and final-sentence margin. These are not measured delivery speeds. If exact speech cannot fit, adjust this and neighboring segment budgets; do not shrink speech merely to make the total add up or silently alter approved lines. Preserve complete literal speech in the prompt; extreme speed is not a solution.

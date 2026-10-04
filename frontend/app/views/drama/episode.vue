@@ -161,6 +161,7 @@
 
     <!-- ========== MAIN CONTENT ========== -->
     <main class="main">
+      <ProductionRequirements v-if="episode && panel !== 'export'" v-model="productionRequirements" :dirty="requirementsDirty" :saving="requirementsSaving" :error="requirementsError" @save="saveRequirementsUI" @reload="reloadRequirementsUI" />
       <!-- ===== SCRIPT PANEL ===== -->
       <div v-if="panel === 'script'" class="content-panel">
         <!-- Step 0: Raw Content -->
@@ -174,7 +175,7 @@
             </div>
             <div class="toolbar-right">
               <span v-if="rawLen" class="char-count">{{ t('episode.script.charCount', { n: rawLen }) }}</span>
-              <button class="btn btn-sm" @click="saveRaw(); toast.success(t('episode.script.saved'))">
+              <button class="btn btn-sm" @click="saveText('raw')">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                 {{ t('common.save') }}
               </button>
@@ -197,12 +198,13 @@
               </div>
             </div>
             <div class="toolbar-right">
+              <button class="btn btn-sm" @click="saveText('script')">{{ t('common.save') }}</button>
               <span v-if="scriptLen" class="char-count">{{ t('episode.script.charCount', { n: scriptLen }) }}</span>
               <button v-if="rawContent" class="btn btn-sm" @click="skipRewrite">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M13 18l6-6-6-6"/></svg>
                 {{ t('episode.script.skipRewrite') }}
               </button>
-              <button v-if="scriptContent" class="btn btn-sm" @click="doRewrite" :disabled="rn">
+              <button v-if="scriptContent" class="btn btn-sm" @click="doRewrite" :disabled="rn || preparingAgent">
                 <Loader2 v-if="rn && rt === 'script_rewriter'" :size="11" class="animate-spin" />
                 <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                 {{ t('episode.script.rewriteAgain') }}
@@ -488,7 +490,7 @@
               <span class="tag mono">{{ t('episode.sb.segmentStat', { n: sbs.length, dur: totalDuration }) }}</span>
               <span class="tag mono" :title="t('episode.vid.aspectRatio')">{{ dramaAspectRatio }}</span>
               <div class="ml-auto flex gap-1">
-                <button class="btn btn-sm" :disabled="rn" @click="doBreakdown">
+                <button class="btn btn-sm" :title="t('professional.rebuildHint')" :disabled="rn || preparingAgent" @click="doBreakdown">
                   <Loader2 v-if="rt === 'storyboard_breaker'" :size="11" class="animate-spin" />
                   <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {{ sbs.length ? t('episode.sb.rebreak') : t('episode.sb.startBreak') }}
@@ -518,7 +520,7 @@
               <div class="empty-title">{{ t('episode.sb.emptyTitle') }}</div>
               <div class="empty-desc">{{ t('episode.sb.emptyDesc') }}</div>
               <div class="locked-config-banner">{{ t('episode.vid.lockedModel') }}{{ effectiveVideoModelLabel }}</div>
-              <button class="btn btn-primary" :disabled="rn" @click="doBreakdown">
+              <button class="btn btn-primary" :disabled="rn || preparingAgent" @click="doBreakdown">
                 <Loader2 v-if="rt === 'storyboard_breaker'" :size="13" class="animate-spin" />
                 <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 {{ t('episode.sb.startBreak') }}
@@ -685,6 +687,8 @@
                       :placeholder="t('episode.inspector.videoPromptPlaceholder')"
                       @commit="v => updateField(selectedSb, 'video_prompt', v)"
                     />
+                    <VideoInputOptions v-model="videoOptions" :capabilities="videoCaps" :default-audio="productionRequirements.speech_mode !== 'none'" @upload="uploadVideoInput" />
+                    <ProductionChecks :checks="shotChecks" :preview="videoPreview.value" :error="videoPreview.error" :record="videoSubmissionRecord" />
                   </section>
               </div>
               </div>
@@ -801,15 +805,15 @@
                         <input
                           :value="selectedSb.duration || 10"
                           type="number"
-                          min="2"
-                          max="30"
+                          :min="videoCaps?.min || 2"
+                          :max="videoCaps?.max || 30"
                           class="input video-duration-input"
                           @change="onVideoDurationChange"
                         />
-                        <span class="video-param-unit">{{ t('episode.inspector.durationUnit') }}</span>
+                        <span class="video-param-unit">s</span>
                       </span>
                     </div>
-                    <div class="video-param-hint">{{ t('episode.inspector.durationHint') }}</div>
+                    <div class="video-param-hint">{{ t('professional.durationRange', { min: videoCaps?.min || 2, max: videoCaps?.max || 30 }) }}</div>
                   </section>
                   <div class="video-inspector-effective">
                     {{ t('episode.inspector.effective', { model: effectiveVideoModelLabel || t('episode.vid.defaultModel'), res: episodeResolutionShort, dur: effectiveVideoDuration }) }}
@@ -1439,6 +1443,8 @@ import { startTour, autoTour } from '~/composables/useTour'
 import { useAgent } from '~/composables/useAgent'
 import { toastError, mapError, MODERATION_RE } from '~/composables/useToast'
 import LocaleSwitcher from '~/components/LocaleSwitcher.vue'
+import { useProductionRequirements } from '~/composables/useProductionRequirements'
+import { agentMessage, boundAssets, inspectVideoInput, videoCapabilities, productionChecks } from '../../../shared-production'
 
 definePageMeta({ layout: 'studio' })
 
@@ -1468,6 +1474,10 @@ const localRaw = ref(''), localScript = ref('')
 const rawContent = computed(() => episode.value?.content || '')
 const scriptContent = computed(() => episode.value?.script_content || episode.value?.scriptContent || '')
 const epId = computed(() => episode.value?.id || 0)
+const { draft: productionRequirements, dirty: requirementsDirty, saving: requirementsSaving, error: requirementsError, save: saveRequirements, reload: reloadRequirements } = useProductionRequirements(dramaId, episode)
+const preparingAgent = ref(false)
+async function saveRequirementsUI() { try { await saveRequirements(); toast.success(t('episode.script.saved')) } catch (e) { toastError(e) } }
+async function reloadRequirementsUI() { try { await reloadRequirements() } catch (e) { toastError(e) } }
 const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
 const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
 
@@ -2134,6 +2144,35 @@ const episodeResolutionLabel = computed(() =>
 // 短档位标签（480p / 768P / 2K 等厂商原生档位），用于底部生效配置小结
 const episodeResolutionShort = computed(() =>
   RESOLUTION_DISPLAY[resolutionProvider.value][episodeResolution.value] || episodeResolution.value)
+const videoOptions = ref({ mode: 'reference' })
+const videoStyles = ref([])
+const videoCaps = computed(() => { try { return videoCapabilities(selectedVideoConfig.value?.provider, effectiveVideoModelLabel.value) } catch { return null } })
+watch(() => [selectedVideoConfig.value?.provider, effectiveVideoModelLabel.value], () => { videoOptions.value = { mode: 'reference' } })
+function videoInput(sb) {
+  const style = videoStyles.value.find(s => s.value === drama.value?.style && s.is_active)
+  return inspectVideoInput({ project: drama.value, episode: { ...episode.value, resolution: episodeResolution.value }, shot: sb, characters: chars.value, scenes: scenes.value, props: propItems.value, config: selectedVideoConfig.value, options: { ...videoOptions.value, model: effectiveVideoModelLabel.value }, style_prompt: style?.prompt || '' })
+}
+const videoPreview = computed(() => { try { return selectedSb.value ? { value: videoInput(selectedSb.value), error: '' } : {} } catch (e) { return { error: e.message } } })
+const shotChecks = computed(() => productionChecks(sbs.value, productionRequirements.value, selectedSb.value?.id))
+const videoSubmissionRecord = computed(() => {
+  const record = sbVideoHistory.value.find(item => previewVideoUrl.value ? taskVideoPath(item) === previewVideoUrl.value : isCurrentVideo(item))
+  if (!record) return null
+  let params = record.params || {}
+  try { if (typeof params === 'string') params = JSON.parse(params) } catch { params = {} }
+  const keys = ['duration', 'aspect_ratio', 'aspectRatio', 'resolution', 'generate_audio', 'generateAudio', 'prompt_extend', 'promptExtend', 'seed', 'watermark', 'first_frame_url', 'firstFrameUrl', 'last_frame_url', 'lastFrameUrl', 'reference_image_urls', 'referenceImageUrls', 'reference_video_urls', 'referenceVideoUrls', 'reference_audio_urls', 'referenceAudioUrls']
+  return { id: record.id, prompt: record.prompt, provider: record.provider, model: record.model, params: Object.fromEntries(keys.filter(k => params[k] !== undefined).map(k => [k, params[k]])) }
+})
+function uploadVideoInput(field) {
+  const kind = field === 'reference_video_urls' ? 'video' : field === 'reference_audio_urls' ? 'audio' : 'image'
+  pickFile(kind + '/*', async file => {
+    try {
+      const result = await uploadAPI[kind](file)
+      const url = result.url || result.path
+      if (!url) throw new Error('Upload returned no URL.')
+      videoOptions.value = { ...videoOptions.value, [field]: field.startsWith('reference_') ? [...(videoOptions.value[field] || []), url] : url }
+    } catch (e) { toastError(e) }
+  })
+}
 const effectiveVideoDuration = computed(() => Number(selectedSb.value?.duration || 10))
 const batchVideoTotalDuration = computed(() =>
   batchVideoConfirm.value.targets.reduce((sum, sb) => sum + (Number(sb.duration) || 5), 0))
@@ -2638,22 +2677,38 @@ async function refresh() {
   await Promise.all([loadGenTasks(), loadExportMerges()])
 }
 
-function saveRaw() { episodeAPI.update(epId.value, { content: localRaw.value }); episode.value.content = localRaw.value }
-function saveScr() { episodeAPI.update(epId.value, { script_content: localScript.value }); episode.value.script_content = localScript.value }
-// 发给 Agent 的 message 是功能性提示词而非 UI 文案：产出语言由后端全局「内容语言」指令控制，
-// 这里保持中文不随界面语言变化
-function doRewrite() { saveRaw(); runAgent('script_rewriter', '请读取剧本并改写为格式化剧本，然后保存', dramaId, epId.value, refresh, chatModelOverride(), chatConfigId()) }
-function skipRewrite() {
+async function saveRaw() {
+  const content = localRaw.value
+  await episodeAPI.update(epId.value, { content })
+  episode.value.content = content
+}
+async function saveScr() {
+  const script_content = localScript.value
+  await episodeAPI.update(epId.value, { script_content })
+  episode.value.script_content = script_content
+}
+async function saveText(kind) {
+  try { await (kind === 'raw' ? saveRaw() : saveScr()); toast.success(t('episode.script.saved')) } catch (e) { toastError(e) }
+}
+async function doRewrite() {
+  if (preparingAgent.value || rn.value) return
+  preparingAgent.value = true
+  try {
+    await saveRaw()
+    const description = await saveRequirements()
+    await runAgent('script_rewriter', agentMessage('rewrite', { description }), dramaId, epId.value, refresh, chatModelOverride(), chatConfigId())
+  } catch (e) { toastError(e) } finally { preparingAgent.value = false }
+}
+async function skipRewrite() {
   const raw = (localRaw.value || rawContent.value || '').trim()
-  if (!raw) {
-    toast.warning(t('episode.script.rawRequired'))
-    return
-  }
-  localScript.value = raw
-  saveScr()
-  toast.success(t('episode.script.skipDone'))
-  panel.value = 'production'
-  prodTab.value = 'assets'
+  if (!raw) { toast.warning(t('episode.script.rawRequired')); return }
+  try {
+    localScript.value = raw
+    await saveScr()
+    await saveRequirements()
+    toast.success(t('episode.script.skipDone'))
+    panel.value = 'production'; prodTab.value = 'assets'
+  } catch (e) { toastError(e) }
 }
 // 资产提取：按类型独立的异步任务（后端任务表驱动），三类可并行；前端轮询状态直到完成
 // label 渲染时求值（语言切换即时生效），key 为逻辑值
@@ -2666,16 +2721,15 @@ const extractingTargets = ref([])
 const extractingLabels = computed(() => EXTRACT_TARGETS.value.filter(x => extractingTargets.value.includes(x.key)).map(x => x.label).join(t('common.listJoin')))
 function isExtracting(target) { return extractingTargets.value.includes(target) }
 
-function doExtract(target) {
+async function doExtract(target) {
   if (isExtracting(target) || !epId.value) return
-  saveScr()
   extractingTargets.value.push(target)
-  episodeAPI.extract(epId.value, target, chatModelOverride(), chatConfigId())
-    .then(() => pollExtractStatus(target))
-    .catch(e => {
-      extractingTargets.value = extractingTargets.value.filter(x => x !== target)
-      toastError(e)
-    })
+  try {
+    await saveScr()
+    await saveRequirements()
+    await episodeAPI.extract(epId.value, target, chatModelOverride(), chatConfigId())
+    pollExtractStatus(target)
+  } catch (e) { extractingTargets.value = extractingTargets.value.filter(x => x !== target); toastError(e) }
 }
 function doExtractAll() { EXTRACT_TARGETS.value.forEach(x => doExtract(x.key)) }
 
@@ -2735,12 +2789,14 @@ function selectMissingVideos() {
   selectedVideoSbIds.value = sbs.value.filter(sb => !hasVid(sb)).map(sb => sb.id)
 }
 
-async function batchVideoPrompts() {
+async function batchVideoPrompts(explicitIds) {
   if (videoPromptBatch.value.running || !epId.value) return
   if (!sbs.value.length) { toast.warning(t('episode.sb.breakFirst')); return }
   // 选择模式下有勾选 → 仅补齐所选；否则全量补齐缺失
-  const ids = (videoSelectMode.value && selectedVideoSbIds.value.length) ? [...selectedVideoSbIds.value] : undefined
+  const ids = Array.isArray(explicitIds) ? explicitIds : (videoSelectMode.value && selectedVideoSbIds.value.length) ? [...selectedVideoSbIds.value] : sbs.value.filter(sb => !(sb.video_prompt || sb.videoPrompt || '').trim()).map(sb => sb.id)
+  if (!ids.length) { toast.info(t('episode.sb.allHavePrompts')); return }
   try {
+    await saveRequirements()
     const res = await episodeAPI.generateVideoPrompts(epId.value, chatModelOverride(), chatConfigId(), ids)
     if (!res?.total) {
       if (res?.already_running) {
@@ -2782,60 +2838,38 @@ function pollVideoPromptBatch(attempts = 240) {
   }
   setTimeout(() => tick(attempts), 2500)
 }
-function doBreakdown() {
-  const charList = chars.value.length
-    ? chars.value.map(c => `${c.name}(ID:${c.id})`).join('、')
-    : '（当前集还没有角色）'
-  const sceneList = scenes.value.length
-    ? scenes.value.map(s => `${s.location} · ${s.time || '未设时间'}(ID:${s.id})`).join('、')
-    : '（当前集还没有场景）'
-  const propList = propItems.value.length
-    ? propItems.value.map(p => `${p.name}(ID:${p.id})`).join('、')
-    : '（当前集还没有道具）'
-  runAgent('storyboard_breaker', `请基于当前集剧本拆分分镜，并为每个分镜段落同时生成 video_prompt（视频生成提示词）。
-本次视频模型：${effectiveVideoModelLabel.value}，请按该模型的特性与时长限制生成 video_prompt。
-
-当前集已有角色：${charList}
-当前集已有场景：${sceneList}
-当前集已有道具：${propList}
-
-绑定要求：
-- 每个镜头必须根据剧本内容，从上述当前集已有角色中选出出场的角色绑定 character_ids（ID 必须来自上述列表；有角色出场就必须绑定，不要遗漏）
-- 每个镜头尽量匹配上述已有场景填写 scene_id（ID 必须来自上述列表），不要凭空创造新场景
-- 每个镜头出现关键道具（被使用、交接、特写或在画面中明显可见）时，从上述当前集已有道具中绑定 prop_ids（ID 必须来自上述列表）；没有道具出现可传空数组
-- 只有纯环境空镜头才可以不绑定角色`, dramaId, epId.value, onBreakdownDone, chatModelOverride(), chatConfigId())
+async function doBreakdown() {
+  if (preparingAgent.value || rn.value) return
+  preparingAgent.value = true
+  try {
+    await saveScr()
+    const description = await saveRequirements()
+    await runAgent('storyboard_breaker', agentMessage('breakdown', { description, video_model: effectiveVideoModelLabel.value }), dramaId, epId.value, onBreakdownDone, chatModelOverride(), chatConfigId())
+  } catch (e) { toastError(e) } finally { preparingAgent.value = false }
 }
 
 /** 拆分完成后刷新并自动补齐缺失的视频提示词（兜住 Agent 漏写/截断） */
 async function onBreakdownDone() {
   await refresh()
   const missing = sbs.value.filter(sb => !(sb.video_prompt || sb.videoPrompt || '').trim())
-  if (missing.length) batchVideoPrompts()
+  if (missing.length) await batchVideoPrompts(missing.map(sb => sb.id))
 }
 
 // 按需为单个分镜生成视频提示词：由 prompt_generator 读取分镜字段生成并保存到 video_prompt
 async function genVideoPrompt(sb) {
   if (!sb || videoPromptGeneratingIds.value.includes(sb.id)) return
   const idx = sbs.value.indexOf(sb) + 1
-  const cfg = selectedVideoConfig.value
-  const label = cfg ? `${cfg.name} (${cfg.provider})` : '默认'
-  const charNames = getStoryboardCharacters(sb).map(c => c.name).join('、') || '无'
-  const propNames = getStoryboardProps(sb).map(p => p.name).join('、') || '无'
   videoPromptGeneratingIds.value.push(sb.id)
   try {
     await api.post(`/agent/prompt_generator/chat`, {
-      message: `请为分镜 #${idx}(ID:${sb.id})生成视频提示词(video_prompt)。视频模型:${label},请根据该模型的特性和时长限制生成。
-
-该分镜信息:时长 ${sb.duration || 10}s;场景:${getSceneName(sb) || '未绑定'};角色:${charNames};道具:${propNames}。
-
-请先调用 read_storyboard_context 获取该分镜的画面描述(含【镜头N】子镜头与台词/旁白)、氛围及时长,据此生成 video_prompt(按 3 秒分段换行、用 @角色名/@场景名/@道具名 引用参考素材；段落内允许多镜头切镜,但不跨场景,切镜点对齐 description 的【镜头N】结构),然后调用 update_storyboard 保存到分镜 ID:${sb.id}。只更新 video_prompt 字段,不要改动其他字段,不要重新拆分整集。`,
+      message: agentMessage('video_prompt', { description: await saveRequirements(), storyboard_ids: [sb.id], video_model: effectiveVideoModelLabel.value }),
       drama_id: dramaId,
       episode_id: epId.value,
       model: chatModelOverride() || undefined,
       config_id: chatConfigId() || undefined,
     })
-    toast.success(t('episode.sb.promptGenerated', { n: idx }))
     await refresh()
+    toast.success(t('professional.agentResponse'))
   } catch (e) {
     toastError(e)
   } finally {
@@ -3036,7 +3070,7 @@ function formatHistoryTime(iso) {
 function getShotReferenceImages(sb) {
   const refs = []
   const pushRef = (value) => {
-    if (!value || refs.includes(value) || refs.length >= refImageLimit.value) return
+    if (!value || refs.includes(value)) return
     refs.push(value)
   }
   const scene = getStoryboardScene(sb)
@@ -3161,51 +3195,13 @@ const mentionOptions = computed(() => {
   ]
 })
 
-// 按参考图顺序（场景图在前、角色图居中、道具图在后）为 @名字 建立索引映射，供视频提示词引用替换
-function getShotReferenceIndexMap(sb) {
-  const ordered = []
-  const seen = new Set()
-  const push = (name, url) => {
-    if (!url || seen.has(url) || ordered.length >= refImageLimit.value) return
-    seen.add(url)
-    ordered.push({ name, imageUrl: url })
-  }
-  const scene = getStoryboardScene(sb)
-  push(scene?.location || '', scene?.image_url || scene?.imageUrl)
-  for (const char of getStoryboardCharacters(sb)) {
-    push(char.name || '', char?.image_url || char?.imageUrl)
-  }
-  for (const prop of getStoryboardProps(sb)) {
-    push(prop.name || '', prop?.image_url || prop?.imageUrl)
-  }
-  const nameToIndex = {}
-  ordered.forEach((a, i) => { if (a.name && !(a.name in nameToIndex)) nameToIndex[a.name] = i + 1 })
-  return nameToIndex
-}
-
-// 将视频提示词里的 @名字 替换为 @图片N名字（N 为参考图序号，1 起），生成时使用
-function resolveVideoPromptRefs(sb) {
-  const prompt = sb.video_prompt || sb.videoPrompt || ''
-  const map = getShotReferenceIndexMap(sb)
-  const names = Object.keys(map).sort((a, b) => b.length - a.length)
-  if (!names.length) return prompt
-  return prompt.replace(/@([^\s@]+)/g, (m, raw) => {
-    for (const name of names) {
-      if (raw.startsWith(name)) {
-        return `@图片${map[name]}${name}${raw.slice(name.length)}`
-      }
-    }
-    return m
-  })
-}
-
 // 分镜时长（视频生成参数区直接编辑并保存到分镜）：
-// 统一限制 2-30s，列表/批量/单次生成统一读取该值；超出厂商支持范围由后端适配器收敛
+// 范围随当前适配器展示；生成前再次校验，不静默改变本集分镜。
 function onVideoDurationChange(e) {
   const sb = selectedSb.value
   if (!sb) return
-  const min = 2
-  const max = 30
+  const min = videoCaps.value?.min || 2
+  const max = videoCaps.value?.max || 30
   let v = Math.round(Number(e.target.value))
   if (!Number.isFinite(v)) v = Number(sb.duration || 10)
   v = Math.min(max, Math.max(min, v))
@@ -3252,27 +3248,12 @@ function uploadAssetImage(kind, id) {
 }
 
 async function genVid(sb, opts = {}) {
-  const referenceImages = getShotReferenceImages(sb)
-  // 参考素材完全来自分镜绑定的角色/场景/道具图片
-  const params = {
-    storyboard_id: sb.id,
-    drama_id: dramaId,
-    prompt: resolveVideoPromptRefs(sb),
-    duration: Number(sb.duration || 10),
-    aspect_ratio: dramaAspectRatio.value,
-    generate_audio: true,
-    model: bareModelName(videoModel.value) || undefined,
-    config_id: ownerConfigId(videoModelOptions.value, videoModel.value),
-    reference_image_urls: referenceImages,
-  }
-  if (!params.prompt && !referenceImages.length) {
-    toast.error(t('episode.vid.needRefOrPrompt'))
-    return
-  }
   try {
+    await saveRequirements()
+    const params = videoInput(sb).body
     delete failedVideoMessages.value[sb.id]
     if (!isPendingVideo(sb.id)) pendingVideoIds.value.push(sb.id)
-    const generation = await taskAPI.generate({ type: 'video', ...params })
+    const generation = await taskAPI.generate(params)
     if (!opts.silent) toast.success(t('episode.vid.generating'))
     await refresh()
     pollVideoGeneration(generation?.id, sb.id)
@@ -3360,6 +3341,7 @@ async function loadConfigs() {
     ])
     imageConfigs.value = imgCfgs || []
     videoConfigs.value = vidCfgs || []
+    videoStyles.value = await api.get('/style-presets')
     textConfigs.value = txtCfgs || []
   } catch (e) { console.error('Failed to load AI configs', e) }
 }

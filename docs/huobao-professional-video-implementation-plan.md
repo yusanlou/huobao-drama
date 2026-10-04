@@ -1,8 +1,8 @@
 # Huobao 剧本与分镜能力强化：详细实施方案
 
-日期：2026-10-04。状态：待实施。
+日期：2026-10-04。状态：A/B 代码与配置已实施，验证结果及保留缺口见 [实施验收记录](./huobao-professional-video-implementation-results.md)。
 
-依据：[优化方案](/Users/mubaili/Documents/Code/huobao-drama/docs/huobao-professional-video-workflow-plan.md)与当前仓库实现。本文规定具体修改项、实施顺序和验收方法；没有修改业务代码、运行中的提示词配置或现有作品。
+依据：[优化方案](/Users/mubaili/Documents/Code/huobao-drama/docs/huobao-professional-video-workflow-plan.md)与当前仓库实现。本文保留实施前的修改范围与验收标准；实际执行状态以实施验收记录为准。
 
 ## 1. 本次做什么
 

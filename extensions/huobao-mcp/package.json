@@ -1,6 +1,6 @@
 {
   "name": "huobao-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "stdio": "tsx src/stdio.ts",
-    "test:backend": "tsx tests/real-backend.smoke.ts"
+    "test:backend": "tsx tests/real-backend.smoke.ts",
+    "evaluate:text": "tsx tests/evaluate-text.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.0",

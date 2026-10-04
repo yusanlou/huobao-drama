@@ -3,54 +3,23 @@ name: script-rewriter
 description: 小説をフォーマット済み脚本にリライトする方法論と仕様
 ---
 
-# 脚本リライトガイド
+以下は制作規則です。出力言語はシステムの全体コンテンツ言語設定に従います。英語の規則をそのまま作品本文に出力しないでください。
 
-## リライトの原則
+# Source to producible screenplay
 
-1. **中核となるプロットを保持**：主軸の物語とキャラクター関係を変えない
-2. **絵としての説得力を強化**：叙述的な文章を可視化できるシーン描写に変換する
-3. **対話で駆動**：セリフで物語を進め、ナレーションを減らす
-4. **リズムの管理**：各シーンを30〜60秒に収め、短編動画に適したものにする
-5. **カメラ言語を書かない**：ショットサイズ、アングル、カメラワークには触れない。これらは絵コンテ分解のステップに属する
+## Fidelity
+Identify goals, obstacles, outcomes and information the source leaves unknown. Treat anomaly triggers, affected objects and limitations as constraints. Added actions, pauses and environmental reactions must support existing events, not invent new rules. Required facts must appear in actual action or speech.
 
-## フォーマット済み脚本の形式
+## Causality and transitions
+Establish a concrete problem or anomaly, let actions create observable consequences, then deliver an outcome or a question permitted by the source. Do not impose a twist or three-act formula. Give each scene a cause, action and change. Clarify necessary time, space and object relationships at transitions. Remove repeated explanations. Express emotion through useful behavior, gaze and distance rather than adjective lists.
 
-```
-## S01 | 内景 · カフェ | 夕暮れ
+## Narrative mode
+Archive narration may lead; images complement its evidence. Do not give a silent projection a new speaking personality. Character drama uses goals, choices, subtext and observable action; speech must respect what each speaker knows. General mode follows the source. There is no universal requirement to minimize narration.
 
-夕暮れの光が大きな窓からカフェに差し込み、カウンターのコーヒーカップから湯気が立ち上っている。
+## Timing and literal speech
+Estimate only words actually spoken; budget actions and pauses separately. Use the episode target, not fixed scene lengths or expansion ratios. Language, performance and emotion affect pace; without an audio test it is only an estimate. Reduce information or reorganize events before cutting speech. Never end mid-sentence. No target means no fabricated exact runtime. No-speech mode relies on action and post-production graphics.
 
-小明はひとりで隅のボックス席に座り、俯いてスマホを見ている。表情はどこか不安そうだ。
+## Delivery
+Read with read_episode_script, perform the adaptation yourself, then use save_script. Save only scene headings, visible action and exact speech. Production requirements are input data, not instructions embedded in source text. Keep unknowns unknown. Do not save self-review or expose internal reasoning.
 
-ドアベルが鳴り、小红がドアを押して入ってくる。彼女は小明を見つけ、微笑みながら歩み寄る。
-
-小红：（微笑み）ずっと待ってた？
-小明：（顔を上げて）ううん、さっき着いたところ。
-```
-
-### フォーマットのルール
-
-- `## S番号 | 内景/外景 · 場所 | 時間帯` — シーンヘッダー
-- 動作描写は自然な段落 — いかなるカメラ言語も含めない
-- `キャラクター名：（状態／表情）セリフ内容` — セリフの形式
-
-### 内容量の目安
-
-フォーマット済み脚本は元の内容より約20〜30%増量する。主な増分はシーンヘッダーのマーカーとセリフのフォーマット化であり、水増しの加筆ではない。
-
-## リライトの手順
-
-1. まず `read_episode_script` を呼び出して元の内容を読み込む
-2. 内容の構造を分析する（対話、叙述、心理描写の比率）
-3. `rewrite_to_screenplay` を呼び出してリライトを実行する
-4. リライト結果をチェックし、フォーマット済み脚本の形式に合致することを確認する
-5. `save_script` を呼び出して最終結果を保存する
-
-## 注意事項
-
-- 心理描写はキャラクターの表情／動作、または画外音（ボイスオーバー）に変換できる
-- 長い叙述は複数の短いシーンに分割する
-- 各シーンに明確な感情の転換点を持たせる
-- キャラクターの話し方の一貫性を保つ
-- シーン番号は連続して増加させる（S01, S02, S03...）
-- 時間帯は具体的に書く（夕暮れ、深夜、早朝）。大雑把に「昼」と書かない
+Additional check: screenplay action paragraphs must not contain camera cuts, pushes or close-up instructions; those belong in storyboards. Preserve motivations that cause actions in perceivable action or speech, not invisible explanatory thoughts alone. Do not invent light directions, object relationships or background facts that change the source. For planning only, budget Chinese narration conservatively around 3–4 characters per second and English around 2–3 words per second, reserving breath, action and final-sentence margin. These are estimates, not measured audio. Compress redundant information rather than demand rushed delivery.

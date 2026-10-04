@@ -1,0 +1,62 @@
+import { z } from 'zod'
+import { parseRequirements, mergeRequirements } from '../../../shared/production.mjs'
+import { hash, requireValue, type Row, type Huobao } from './core.js'
+import type { Production } from './production.js'
+import type { AgentCalls } from './agent-calls.js'
+const id = z.number().int().positive()
+const scope = { project_id: id, episode_id: id }
+const request_key = z.string().min(8).max(120)
+const model = { model: z.string().min(1).max(500).optional(), config_id: id.optional() }
+const url = z.string().min(1).max(4000)
+export const videoOptions = z.object({
+  mode: z.enum(['text', 'reference', 'first_frame', 'first_last']).optional(),
+  generate_audio: z.boolean().optional(), prompt_extend: z.boolean().optional(),
+  first_frame_url: url.optional(), last_frame_url: url.optional(),
+  reference_image_urls: z.array(url).max(20).optional(), reference_video_urls: z.array(url).max(5).optional(), reference_audio_urls: z.array(url).max(5).optional(),
+  duration: z.number().int().min(2).max(30).optional(), aspect_ratio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:4', '21:9']).optional(),
+  resolution: z.enum(['480p', '720p', '1080p']).optional(), seed: z.number().int().min(-1).max(2147483647).optional(), watermark: z.boolean().optional(),
+}).strict()
+export const creativeSchemas = {
+  hb_get_production_requirements: z.object(scope).strict(),
+  hb_update_production_requirements: z.object({ ...scope, request_key, expected_hash: z.string().length(64), requirements: z.object({ version: z.literal(1), target_duration_seconds: id.optional(), narrative_mode: z.enum(['general', 'archive_narration', 'character_drama']), adaptation_scope: z.string().max(10000), must_keep: z.array(z.string().max(2000)).max(100), avoid: z.array(z.string().max(2000)).max(100), speech_mode: z.enum(['native', 'none']) }).strict() }).strict(),
+  hb_rewrite_script: z.object({ ...scope, request_key, ...model, expected_hash: z.string().length(64).describe('Hash of original content from hb_read_content; rewrites from the original, overwrites script_content.') }).strict(),
+  hb_breakdown_storyboards: z.object({ ...scope, request_key, ...model, expected_hash: z.string().length(64), scope: z.literal('replace_episode').describe('Explicitly rebuild all episode storyboards; native Agent can delete existing records.'), video_model: z.string().max(500).optional() }).strict(),
+  hb_generate_video_prompts: z.object({ ...scope, request_key, ...model, mode: z.enum(['single', 'native_batch']), storyboard_ids: z.array(id).min(1).max(100), video_model: z.string().max(500).optional() }).strict(),
+  hb_get_call: z.object({ call_id: z.string().uuid() }).strict(),
+  hb_inspect_video_input: z.object({ ...scope, storyboard_id: id, ...model, options: videoOptions.optional() }).strict(),
+}
+export const creativeDescriptions = {
+  hb_get_production_requirements: 'Read production requirements from native episode.description with its full hash. Same data as webpage.',
+  hb_update_production_requirements: 'Save requirements in native episode.description, preserving surrounding text. Best-effort hash check and readback; not atomic CAS. Malformed blocks are never replaced.',
+  hb_rewrite_script: 'Call the original Huobao script_rewriter, using original content and saved episode requirements. Overwrites native script_content. Returns an MCP call receipt immediately; poll hb_get_call and inspect saved script. Never retries unknown submissions.',
+  hb_breakdown_storyboards: 'Call original storyboard_breaker to rebuild this entire episode. Existing storyboards may be deleted non-atomically. Only for explicit rebuild intent; use hb_write_storyboards for local edits. Poll returned call receipt.',
+  hb_generate_video_prompts: 'Single: original prompt_generator Agent for exactly one ID, return receipt. native_batch: original async batch API for explicit IDs; query hb_episode_action video_prompts_status. Native batch retains fixed timing instructions and transient status.',
+  hb_get_call: 'Read an MCP receipt for a native Agent HTTP call. response_received is not quality approval or proof of save; compare native fields. Unknown calls must not be blindly resubmitted.',
+  hb_inspect_video_input: 'Preview resolved references, actual request fields, style injection prediction and adapter conversions. Read-only; does not generate. Provider internal prompt remains unknown.',
+}
+export const creativeReadonly = ['hb_get_production_requirements', 'hb_get_call', 'hb_inspect_video_input']
+export async function creativeHandle(name: string, a: Row, api: Huobao, production: Production, calls: AgentCalls): Promise<any> {
+  const write = (path: string, body: Row) => production.write(`${name}:${a.request_key}:native`, path, 'PUT', body)
+  if (name === 'hb_get_call') return calls.get(a.call_id)
+  if (name === 'hb_rewrite_script') return calls.start('rewrite', a)
+  if (name === 'hb_breakdown_storyboards') return calls.start('breakdown', a)
+  if (name === 'hb_inspect_video_input') return production.inspectVideo(a.project_id, a.episode_id, { target_id: a.storyboard_id, config_id: a.config_id, model: a.model, video_options: a.options })
+  const c = await api.context(a.project_id, a.episode_id)
+  if (name === 'hb_get_production_requirements') return { requirements: parseRequirements(c.episode.description || '').requirements, description_hash: hash(c.episode.description || ''), server_cas: false }
+  if (name === 'hb_update_production_requirements') {
+    requireValue(hash(c.episode.description || '') === a.expected_hash, 'CONFLICT', 'Description changed; reload before updating.')
+    const description = mergeRequirements(c.episode.description || '', a.requirements)
+    await write(`/episodes/${a.episode_id}`, { description })
+    const after = await api.context(a.project_id, a.episode_id)
+    requireValue(after.episode.description === description, 'CONFLICT', 'Readback differs from written description. Inspect before retrying.')
+    return { requirements: parseRequirements(description).requirements, description_hash: hash(description), server_cas: false }
+  }
+  if (name === 'hb_generate_video_prompts') {
+    requireValue(new Set(a.storyboard_ids).size === a.storyboard_ids.length && a.storyboard_ids.every((id: number) => c.storyboards.some((s: Row) => s.id === id)), 'PRECONDITION', 'Choose unique storyboards from this episode.')
+    if (a.mode === 'single') return calls.start('video_prompt', a)
+    const before = calls.snapshot(c, 'video_prompt', a.storyboard_ids)
+    const result = await production.write(`${name}:${a.request_key}:batch`, `/episodes/${a.episode_id}/generate-video-prompts`, 'POST', { storyboard_ids: a.storyboard_ids, model: a.model, config_id: a.config_id })
+    return { native_batch: result, before, status_tool: 'hb_episode_action', verification: 'Read target prompts after native batch completion; unchanged/nonempty old text is not proof of regeneration.' }
+  }
+  throw new Error('Unknown creative tool')
+}

@@ -1,7 +1,9 @@
 # Optional extension only. The original Huobao backend is not rebuilt or modified.
 services:
   huobao-mcp:
-    build: ../../extensions/huobao-mcp
+    build:
+      context: ../..
+      dockerfile: extensions/huobao-mcp/Dockerfile
     ports:
       - "127.0.0.1:5680:5680"
     extra_hosts:

@@ -3,81 +3,20 @@ name: storyboard-breaker
 description: 絵コンテ分解のプロ仕様 — 脚本を複数のサブカットを収める絵コンテパラグラフに分割する
 ---
 
-# 絵コンテ分解ガイド
+以下は制作規則です。出力言語はシステムの全体コンテンツ言語設定に従います。英語の規則をそのまま作品本文に出力しないでください。
 
-## 中核の定義：絵コンテパラグラフ
+# Storyboard direction
 
-1つの絵コンテ = 1つの **絵コンテパラグラフ**（segment）= 1つの動画生成タスク。
+Break down complete events, not source word counts or fixed-length blocks. Read the episode script, description requirements and existing assets. Preserve literal speech. If it cannot fit, reorganize segments and identify needed script changes; never silently omit words or demand unintelligible speed.
 
-- 各パラグラフの尺は **8〜15秒** で、内部に **2〜4個のサブカット** を収める
-- サブカット間では**カット切り替えが可能**：ショットサイズ、アングル、被写体を変え、ハードカットでつなぐ
-- サブカット間で**シーンをまたがない**：1つのパラグラフは1つのシーン内でのみ起こる（`scene_id` はパラグラフ単位の紐付け）
-- 各サブカットは2〜6秒で、1つの画面ユニット（1つの動作、1つの反応、1つのクローズアップ）に焦点を当てる
+Define the new information each segment gives the viewer. Use space establishment, action evidence, necessary reactions and results. No compulsory camera movement. Framing controls information; camera position respects axis and eyelines. Motion follows a subject or reveals information; otherwise a fixed camera is valid. Cut at action completion, attention shifts or revelations.
 
-## 分解フロー（4ステップ）
+In description, specify starting positions, direction, speed changes, contact and ending state. Clarify interactions between subjects. In atmosphere, specify key-light direction, occlusion, softness, tonal separation, color tendency and visible texture. Describe observable material behavior: diffuse surfaces, wet highlights, fabric tension, illuminated dust. Do not pretend arbitrary physical constants are precise model controls. Use result as the next shot's continuity point.
 
-1. `read_storyboard_context` を呼び出して、脚本、キャラクター、シーン、小道具、既存絵コンテの要約を読み込む
-2. **拍（ビート）の識別**：まず脚本の物語の拍を識別する——脚本中の【开场】【触发】【高潮】【收尾】などのマーカー、または物語の転換点（場所の移動、ルール開示、感情の爆発、どんでん返し）。**拍の境界では強制的に区切る**。同じ拍内のサブカットは優先的に同じパラグラフにまとめ、1つの因果チェーン（布石-発生-反応）を異なるパラグラフに切り散らかさない
-3. **総量のアンカー**：目標総尺 = 脚本の文字数 ÷ 500字/分。パラグラフ数 ≈ 目標総尺 ÷ 12秒。±20%の変動を許容。明らかに超過・不足しないこと
-4. **パラグラフ内のサブカット分割**：動作の切り替わり点、視点の切り替わり点、被写体の切り替わり点でサブカットを分割し、各パラグラフに完全なフィールドを補完してから `save_storyboards` を呼び出して一括保存する
+Check positions, orientation, held objects, clothing and prop state, lights and action phase. Separate ordinary physics from intentional anomalies: establish a stable baseline, then specify where change begins, how it develops and where it ends. A bizarre effect must be visible, not merely called eerie.
 
-## リズム階層別の尺
+duration is segment seconds. Speech and action can overlap; unrelated speakers should not overlap without intent. Check the total against a supplied target; otherwise label estimates. Descriptive prose is not spoken runtime. Never cut speech to meet a time limit.
 
-パラグラフの機能に応じて尺を決め、一律にしない：
+Bind actual episode assets only. Pure narrators need not appear. image_prompt describes a frame; video_prompt describes change, photography, literal sound and necessary constraints. Sound-intention fields are not audio generation. Use native save tools for full rebuilding and ID-scoped updates for local edits.
 
-| パラグラフの種類 | 尺 | 説明 |
-|---|---|---|
-| つなぎの段落 | 8〜10秒 | 移動、空カット、環境の提示、場面転換 |
-| 物語の段落 | 10〜15秒 | 通常の物語の推進、対話 |
-| 山場の段落 | 12〜15秒 | クローズアップ、ルール開示、感情の爆発、どんでん返し。サブカットのリズムを落とし、1つのサブカットに4〜6秒留めることができる |
-
-## セリフの尺の下限（硬いルール）
-
-**パラグラフの尺 ≥ パラグラフ内のセリフとナレーションの総文字数（description に書かれた部分）÷ 4.5字/秒 ＋ 2秒の演技余裕**
-
-収まりきらないセリフは必ず次のパラグラフに振り分ける。演じきれないセリフを1つのパラグラフに詰め込むことは許されない。
-
-## カットの要素
-
-1. **カットのタイトル**：パラグラフの中核内容を3〜5字で概括（例：「悪夢で目覚める」）
-2. **時間**：具体的な時刻 ＋ 光線の描写
-3. **場所**：シーンの完全な描写 ＋ 空間構成 ＋ 環境の細部
-4. **ショットサイズ**：パラグラフ内で主導するショットサイズ。複数ショットサイズのパラグラフは組み合わせで書く（例：「ミディアム＋クローズアップ」）
-5. **アングル**：目線／仰角／俯瞰／側面／背面
-6. **カメラワーク**：固定／プッシュイン／プルバック／パン／フォロー／移動（パラグラフ内のサブカットごとに異なってよい）
-7. **画面描写** `description`：`【镜头1】…【镜头2】…` とサブカットごとに、観客が実際に見て聞く内容を記述する——画面（誰 ＋ 具体的な動作 ＋ 体の細部 ＋ 表情）を先に書く。そのサブカットにセリフがある場合は「キャラクター名は言う：「セリフ」」を対応する `【镜头N】` 内に書き、ナレーションは「ナレーション：内容」と書く
-8. **画面の結果** `result`：パラグラフ末尾の即時の結果 ＋ 視覚的な細部
-9. **雰囲気** `atmosphere`：光線 ＋ 色調 ＋ 音 ＋ 全体の雰囲気
-10. **尺** `duration`：パラグラフの総尺 8〜15秒。かつセリフの尺の下限を満たすこと
-11. **シーンの関連付け**：既存シーンにマッチできる場合は、必ず `scene_id` を記入する
-12. **キャラクターの関連付け**：`character_ids` を記入し、現在のパラグラフに関わる0個以上のキャラクターを紐付ける
-13. **小道具の関連付け**：`prop_ids` を記入し、現在のパラグラフに登場する重要な小道具（0個以上）を紐付ける
-
-## シーン関連付けのルール
-
-- `read_storyboard_context` が返す `scenes` を優先的に使用する
-- `location + time` で明確にマッチできる場合は、必ず正しい `scene_id` を埋め戻す
-- 存在しないシーンIDをでたらめに生成しない
-- 脚本の内容が明らかに既存シーンに収まる場合、新しいシーン描写を重複して作らない
-
-## キャラクター紐付けのルール
-
-- `character_ids` は必ず `read_storyboard_context` が返すキャラクターリストから選ぶ
-- 1つのパラグラフはキャラクターなしでもよいし、複数のキャラクターを紐付けてもよい
-- パラグラフ内で明確に登場し、見え、動作し、または話すキャラクターはすべて紐付ける
-- 純粋な環境のパラグラフ、空カット、物品のクローズアップは空の配列を渡してよい
-
-## 小道具紐付けのルール
-
-- `prop_ids` は必ず `read_storyboard_context` が返す小道具リスト（`props`）から選ぶ
-- 小道具がキャラクターに使われる、受け渡される、クローズアップされる、または画面内で明確に見えて物語上の意味がある場合は、必ずそのパラグラフに紐付ける
-- 小道具のクローズアップのパラグラフ（キャラクターなし）も小道具を紐付ける。`character_ids` は空でよい
-- 物語と無関係な背景物品、シーンの調度品は紐付けない。小道具が登場しないパラグラフは空の配列を渡す
-- 紐付けられた小道具は動画生成の参照画像（白背景の単品画像）として使われ、パラグラフをまたいで小道具の外観の一貫性を保証する
-
-## 品質要件
-
-- `description` は人が読みやすいものにし、サブカットごとに観客が実際に見て聞く内容を詳細に記述する。セリフ／ナレーションは対応する `【镜头N】` 内に直接書く
-- `image_prompt` は単一フレームの構図、キャラクターの外観、環境、光線を際立たせる（パラグラフの最初のサブカットに対応）
-- `bgm_prompt` と `sound_effect` は簡潔なフレーズでよいが、「緊張」「悲しみ」だけのような空虚なものにしない
-- 調整が必要な場合は `update_storyboard` を呼び出して該当パラグラフを修正する
+Speech budget check: use approximately 3–4 Chinese characters per second or 2–3 English words per second as conservative planning estimates only, with additional breathing, action and final-sentence margin. These are not measured delivery speeds. If exact speech cannot fit, adjust this and neighboring segment budgets; do not shrink speech merely to make the total add up or silently alter approved lines. Preserve complete literal speech in the prompt; extreme speed is not a solution.

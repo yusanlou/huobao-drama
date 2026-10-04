@@ -3,81 +3,20 @@ name: storyboard-breaker
 description: 스토리보드 분할 전문 규범 — 대본을 여러 서브 컷을 담을 수 있는 스토리보드 구간으로 분할
 ---
 
-# 스토리보드 분할 가이드
+다음은 제작 규칙입니다. 작품의 언어는 시스템의 전역 콘텐츠 언어 설정을 따릅니다. 영어 규칙 자체를 작품 본문에 출력하지 마세요.
 
-## 핵심 정의: 스토리보드 구간
+# Storyboard direction
 
-하나의 스토리보드 = 하나의 **스토리보드 구간**(segment) = 하나의 비디오 생성 작업.
+Break down complete events, not source word counts or fixed-length blocks. Read the episode script, description requirements and existing assets. Preserve literal speech. If it cannot fit, reorganize segments and identify needed script changes; never silently omit words or demand unintelligible speed.
 
-- 각 구간은 **8-15초**이며, 내부에 **2-4개의 서브 컷**을 담습니다
-- 서브 컷 사이에서는 **컷 전환 가능**: 화면 크기, 앵글, 촬영 대상을 바꾸고 하드 컷으로 연결합니다
-- 서브 컷 사이에서는 **장면을 넘나들지 않음**: 한 구간은 하나의 장면 안에서만 일어납니다(`scene_id` 는 구간 단위 바인딩)
-- 각 서브 컷은 2-6초로, 하나의 화면 단위(하나의 동작, 하나의 반응, 하나의 클로즈업)에 집중합니다
+Define the new information each segment gives the viewer. Use space establishment, action evidence, necessary reactions and results. No compulsory camera movement. Framing controls information; camera position respects axis and eyelines. Motion follows a subject or reveals information; otherwise a fixed camera is valid. Cut at action completion, attention shifts or revelations.
 
-## 분할 흐름(4단계)
+In description, specify starting positions, direction, speed changes, contact and ending state. Clarify interactions between subjects. In atmosphere, specify key-light direction, occlusion, softness, tonal separation, color tendency and visible texture. Describe observable material behavior: diffuse surfaces, wet highlights, fabric tension, illuminated dust. Do not pretend arbitrary physical constants are precise model controls. Use result as the next shot's continuity point.
 
-1. `read_storyboard_context` 를 호출해 대본, 캐릭터, 장면, 소품, 기존 스토리보드 요약을 읽습니다
-2. **박자 식별**: 먼저 대본의 서사 박자를 식별합니다 — 대본 속 【오프닝】【촉발】【클라이맥스】【마무리】 등의 마커, 또는 서사 전환점(장소 이동, 규칙 공개, 감정 폭발, 반전). **박자 경계에서는 반드시 구간을 자르고**, 같은 박자 안의 서브 컷은 같은 구간에 우선 배치하며, 하나의 인과 사슬(복선-발생-반응)을 서로 다른 구간으로 쪼개지 않습니다
-3. **총량 앵커링**: 목표 총 길이 = 대본 글자 수 ÷ 500자/분; 구간 수 ≈ 목표 총 길이 ÷ 12초, ±20% 범위 내 변동 허용. 눈에 띄게 초과하거나 부족하지 않게 합니다
-4. **구간 내 서브 컷 분할**: 동작 전환점, 시점 전환점, 대상 전환점을 기준으로 서브 컷을 나누고, 각 구간의 전체 필드를 채운 뒤 `save_storyboards` 를 호출해 한 번에 저장합니다
+Check positions, orientation, held objects, clothing and prop state, lights and action phase. Separate ordinary physics from intentional anomalies: establish a stable baseline, then specify where change begins, how it develops and where it ends. A bizarre effect must be visible, not merely called eerie.
 
-## 리듬 계층별 길이
+duration is segment seconds. Speech and action can overlap; unrelated speakers should not overlap without intent. Check the total against a supplied target; otherwise label estimates. Descriptive prose is not spoken runtime. Never cut speech to meet a time limit.
 
-구간의 기능에 따라 길이를 정하며, 획일적으로 하지 마세요:
+Bind actual episode assets only. Pure narrators need not appear. image_prompt describes a frame; video_prompt describes change, photography, literal sound and necessary constraints. Sound-intention fields are not audio generation. Use native save tools for full rebuilding and ID-scoped updates for local edits.
 
-| 구간 유형 | 길이 | 설명 |
-|---|---|---|
-| 전이 구간 | 8-10초 | 이동, 빈 장면, 환경 설정, 전환 |
-| 서사 구간 | 10-15초 | 일반적인 줄거리 진행, 대화 |
-| 클라이맥스 구간 | 12-15초 | 클로즈업, 규칙 공개, 감정 폭발, 반전; 서브 컷 리듬을 늦춰 하나의 서브 컷이 4-6초 머무를 수 있음 |
-
-## 대사 길이 하한(엄격한 규칙)
-
-**구간 길이 ≥ 구간 내 대사와 내레이션 총 글자 수(description 에 적힌 부분) ÷ 4.5자/초 + 2초 연기 여유분**
-
-담을 수 없는 대사는 반드시 다음 구간으로 나누며, 다 소화할 수 없는 대사를 한 구간에 욱여넣는 것은 허용되지 않습니다.
-
-## 컷 요소
-
-1. **컷 제목**: 구간의 핵심 내용을 3-5자로 요약(예: "악몽에서 깨어남")
-2. **시간**: 구체적인 시각 + 조명 묘사
-3. **장소**: 장면 전체 묘사 + 공간 배치 + 환경 디테일
-4. **화면 크기**: 구간 내 주도 화면 크기; 여러 화면 크기의 구간은 조합으로 씁니다(예: "미디엄샷+클로즈업")
-5. **앵글**: 정면/로우 앵글/하이 앵글/측면/후면
-6. **카메라 무빙**: 고정/푸시인/풀백/팬/팔로우/트래킹(구간 내 서브 컷마다 다를 수 있음)
-7. **화면 묘사** `description`: `【镜头1】…【镜头2】…` 형식으로 서브 컷별로 관객이 실제로 보고 듣는 내용을 서술합니다 — 화면(누가 + 구체적 동작 + 신체 디테일 + 표정)을 먼저 씁니다; 해당 서브 컷에 대사가 있으면 「캐릭터명이 말한다: 「대사」」 형식으로 해당 `【镜头N】` 안에 쓰고, 내레이션은 「내레이션: 내용」으로 씁니다
-8. **화면 결과** `result`: 구간 끝의 즉각적인 결과 + 시각 디테일
-9. **분위기** `atmosphere`: 조명 + 색조 + 소리 + 전체 분위기
-10. **길이** `duration`: 구간 총 길이 8-15초, 대사 길이 하한을 충족해야 함
-11. **장면 연결**: 기존 장면과 매칭되면 반드시 `scene_id` 를 채웁니다
-12. **캐릭터 연결**: `character_ids` 를 채워 현재 구간에 관련된 0명 이상의 캐릭터를 바인딩합니다
-13. **소품 연결**: `prop_ids` 를 채워 현재 구간에 등장하는 핵심 소품(0개 이상)을 바인딩합니다
-
-## 장면 연결 규칙
-
-- `read_storyboard_context` 가 반환한 `scenes` 를 우선 사용합니다
-- `location + time` 으로 명확히 매칭되면 반드시 올바른 `scene_id` 를 채워 넣습니다
-- 존재하지 않는 장면 ID를 임의로 만들지 마세요
-- 대본 내용이 기존 장면에 명백히 해당하면 새 장면 묘사를 중복 생성하지 마세요
-
-## 캐릭터 바인딩 규칙
-
-- `character_ids` 는 반드시 `read_storyboard_context` 가 반환한 캐릭터 목록에서 선택해야 합니다
-- 한 구간에 캐릭터가 없을 수도 있고, 여러 캐릭터를 바인딩할 수도 있습니다
-- 구간에 명확히 출연하거나, 보이거나, 동작하거나, 말하는 캐릭터가 있으면 모두 바인딩해야 합니다
-- 순수 환경 구간, 빈 장면, 사물 클로즈업은 빈 배열을 전달할 수 있습니다
-
-## 소품 바인딩 규칙
-
-- `prop_ids` 는 반드시 `read_storyboard_context` 가 반환한 소품 목록(`props`)에서 선택해야 합니다
-- 소품이 캐릭터에 의해 사용되거나, 전달되거나, 클로즈업되거나, 화면에 뚜렷이 보이며 서사적으로 의미가 있을 때 반드시 해당 구간에 바인딩합니다
-- 소품 클로즈업 구간(캐릭터 없음)도 소품을 바인딩해야 하며, `character_ids` 는 비워 둘 수 있습니다
-- 줄거리와 무관한 배경 물건, 장면 비품은 바인딩하지 마세요; 소품이 등장하지 않는 구간은 빈 배열을 전달합니다
-- 바인딩된 소품은 비디오 생성의 참조 이미지(화이트 배경 단품 이미지)로 사용되어, 소품의 외형이 구간을 넘어 일관되게 유지됩니다
-
-## 품질 요구 사항
-
-- `description` 은 사람이 읽기에 적합해야 하며, 서브 컷별로 관객이 실제로 보고 듣는 내용을 상세히 서술합니다; 대사/내레이션은 해당 `【镜头N】` 안에 직접 씁니다
-- `image_prompt` 는 단일 프레임 구도, 캐릭터 외형, 환경과 조명을 부각해야 합니다(구간의 첫 번째 서브 컷에 대응)
-- `bgm_prompt` 와 `sound_effect` 는 간결한 구문으로 쓰되, "긴장" "슬픔"만으로 끝날 만큼 공허해서는 안 됩니다
-- 조정이 필요하면 `update_storyboard` 를 호출해 특정 구간을 수정합니다
+Speech budget check: use approximately 3–4 Chinese characters per second or 2–3 English words per second as conservative planning estimates only, with additional breathing, action and final-sentence margin. These are not measured delivery speeds. If exact speech cannot fit, adjust this and neighboring segment budgets; do not shrink speech merely to make the total add up or silently alter approved lines. Preserve complete literal speech in the prompt; extreme speed is not a solution.
