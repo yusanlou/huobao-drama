@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import { agentMessage } from '../../../shared/production.mjs'
+import { agentMessage, completeVideoPrompts, PromptCompletionError } from '../../../shared/production.mjs'
 import { failure, hash, Huobao, Ledger, now, requireValue, type Row } from './core.js'
 
 // Receipts for existing synchronous HTTP calls, not a second production workflow.
 export class AgentCalls {
   private active = new Map<string, AbortController>()
   constructor(readonly ledger: Ledger, readonly api: Huobao) {}
+  private async promptContext(projectId: number, episodeId: number) {
+    const [c, styles] = await Promise.all([this.api.context(projectId, episodeId), this.api.call('/style-presets')])
+    return { ...c, style_prompt: styles.find((s: Row) => s.value === c.project.style && s.is_active)?.prompt || '' }
+  }
   snapshot(c: Row, kind: string, ids: number[] = []) {
     if (kind === 'asset_prompt') return { assets_hash: hash([c.characters, c.scenes, c.props]), prompts: [...c.characters, ...c.scenes, ...c.props].map((r: Row) => ({ id: r.id, prompt_hash: hash(r.final_prompt || '') })) }
     if (kind === 'rewrite') return { content_hash: hash(c.episode.content || ''), script_hash: hash(c.episode.script_content || '') }
@@ -13,16 +17,16 @@ export class AgentCalls {
     return { script_hash: hash(c.episode.script_content || c.episode.content || ''), storyboards_hash: hash(rows), storyboards: rows.map((s: Row) => ({ id: s.id, video_prompt_hash: hash(s.video_prompt || ''), has_video_prompt: !!s.video_prompt?.trim() })) }
   }
   async start(kind: 'rewrite' | 'breakdown' | 'video_prompt' | 'asset_prompt', args: Row) {
-    const c = await this.api.context(args.project_id, args.episode_id)
+    const c: Row = ['breakdown', 'video_prompt'].includes(kind) ? await this.promptContext(args.project_id, args.episode_id) : await this.api.context(args.project_id, args.episode_id)
     const source = kind === 'rewrite' ? c.episode.content || '' : c.episode.script_content || c.episode.content || ''
     if (kind === 'rewrite' || kind === 'breakdown') {
       requireValue(source.trim(), 'PRECONDITION', 'Source text is empty.')
       requireValue(hash(source) === args.expected_hash, 'CONFLICT', 'Source changed. Read the original content again.')
     }
-    if (kind === 'video_prompt') requireValue(args.storyboard_ids.length === 1 && args.storyboard_ids.every((id: number) => c.storyboards.some((s: Row) => s.id === id)), 'PRECONDITION', 'Single mode requires exactly one storyboard in this episode.')
+    if (kind === 'video_prompt') requireValue(args.storyboard_ids.length > 0 && (args.mode !== 'single' || args.storyboard_ids.length === 1) && args.storyboard_ids.every((id: number) => c.storyboards.some((s: Row) => s.id === id)), 'PRECONDITION', 'Choose episode storyboards; single mode requires exactly one ID.')
     requireValue(!Object.values(this.ledger.state.requests).some(r => r.kind === 'agent_call' && r.episode_id === args.episode_id && ['queued', 'dispatching'].includes(r.status)), 'CALL_IN_FLIGHT', 'An MCP Agent call is still running for this episode. This does not lock the webpage.')
     if (kind === 'asset_prompt') requireValue((c as Row)[args.kind]?.some((r: Row) => r.id === args.target_id), 'NOT_FOUND', 'Asset is not linked to the episode.')
-    const message = kind === 'asset_prompt' ? '' : agentMessage(kind, { description: c.episode.description || '', storyboard_ids: args.storyboard_ids, video_model: args.video_model })
+    const message = kind === 'asset_prompt' ? '' : agentMessage(kind, { description: c.episode.description || '', storyboard_ids: args.storyboard_ids, video_model: args.video_model, storyboards: c.storyboards, project: c.project, style_prompt: c.style_prompt })
     this.ledger.gate()
     const id = randomUUID()
     const receipt: Row = { id, kind: 'agent_call', operation: kind, project_id: args.project_id, episode_id: args.episode_id, storyboard_ids: args.storyboard_ids || [], status: 'queued', created_at: now(), before: this.snapshot(c, kind, args.storyboard_ids), native_job_id: null, server_cas: false }
@@ -40,14 +44,29 @@ export class AgentCalls {
     receipt.status = 'dispatching'; receipt.dispatched_at = now(); this.ledger.save()
     try {
       const type = { rewrite: 'script_rewriter', breakdown: 'storyboard_breaker', video_prompt: 'prompt_generator' }[receipt.operation as string]
-      await this.api.call(receipt.operation === 'asset_prompt' ? `/${args.kind}/${args.target_id}/generate-prompt` : `/agent/${type}/chat`, 'POST', receipt.operation === 'asset_prompt' ? { episode_id: args.episode_id, force: args.force, text_model: args.text_model, text_config_id: args.text_config_id } : { drama_id: args.project_id, episode_id: args.episode_id, message, model: args.model, config_id: args.config_id }, { agent: true, signal: controller.signal, project: () => null })
+      if (receipt.operation !== 'video_prompt') await this.api.call(receipt.operation === 'asset_prompt' ? `/${args.kind}/${args.target_id}/generate-prompt` : `/agent/${type}/chat`, 'POST', receipt.operation === 'asset_prompt' ? { episode_id: args.episode_id, force: args.force, text_model: args.text_model, text_config_id: args.text_config_id } : { drama_id: args.project_id, episode_id: args.episode_id, message, model: args.model, config_id: args.config_id }, { agent: true, signal: controller.signal, project: () => null })
+      if (['breakdown', 'video_prompt'].includes(receipt.operation)) {
+        receipt.prompt_completion = await completeVideoPrompts({
+          readContext: async () => { this.ledger.gate(); return this.promptContext(args.project_id, args.episode_id) },
+          storyboardIds: receipt.operation === 'video_prompt' ? args.storyboard_ids : undefined,
+          force: receipt.operation === 'video_prompt',
+          generate: async (id, c) => {
+            this.ledger.gate()
+            await this.api.call('/agent/prompt_generator/chat', 'POST', { drama_id: args.project_id, episode_id: args.episode_id, model: args.model, config_id: args.config_id,
+              message: agentMessage('video_prompt', { description: c.episode.description || '', storyboard_ids: [id], video_model: args.video_model, storyboards: c.storyboards, project: c.project, style_prompt: c.style_prompt }),
+            }, { agent: true, signal: controller.signal, project: () => null })
+          },
+          onProgress: progress => { receipt.prompt_progress = progress; this.ledger.save() },
+        })
+      }
       if (this.ledger.stopping || this.ledger.closed) return
       receipt.status = 'response_received'
       // A successful response is not proof that the model saved the intended content.
       receipt.verification = 'Inspect native content; changes alone do not prove this call saved correctly.'
     } catch (e) {
       if (this.ledger.stopping || this.ledger.closed) return
-      receipt.status = 'submission_unknown'; receipt.error = failure(e)
+      receipt.status = e instanceof PromptCompletionError ? 'needs_attention' : 'submission_unknown'; receipt.error = failure(e)
+      if (e instanceof PromptCompletionError) receipt.prompt_completion = e.report
     } finally { this.active.delete(receipt.id) }
     if (this.ledger.stopping || this.ledger.closed) return
     receipt.finished_at = now(); this.ledger.save()

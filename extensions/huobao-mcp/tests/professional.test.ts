@@ -8,14 +8,14 @@ import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { createExtension } from '../src/server.js'
 import { hash } from '../src/core.js'
-import { emptyRequirements, mergeRequirements, agentMessage } from '../../../shared/production.mjs'
+import { emptyRequirements, mergeRequirements, agentMessage, productionChecks, mergeContinuity } from '../../../shared/production.mjs'
 
 async function fixture(agentTimeout = 500) {
   const dir = await mkdtemp(join(tmpdir(), 'huobao-professional-'))
   const episode: any = { id: 2, description: 'Original description\n', content: 'Original source', script_content: 'Approved script', video_config_id: 3, resolution: '720p' }
   const shots: any[] = [{ id: 4, episode_id: 2, duration: 6, video_prompt: '旁白：“这是逐字台词。”', description: '旁白：“这是逐字台词。”', scene_id: null, character_ids: [], prop_ids: [] }]
   const calls: any[] = [], uploads: Buffer[] = []
-  let delay = 0, agentStatus = 200, batchIds: number[] = []
+  let delay = 0, agentStatus = 200, batchIds: number[] = [], incompletePrompt = false
   const configs = [{ id: 3, name: 'Wan', provider: 'aliyun', model: ['wan3.0-video'], service_type: 'video', is_active: true, api_key: 'NEVER_RETURN_THIS', base_url: 'https://provider.example/key/NEVER_RETURN_THIS' }]
   const server = createServer(async (req, res) => {
     const chunks = []; for await (const chunk of req) chunks.push(chunk)
@@ -28,6 +28,7 @@ async function fixture(agentTimeout = 500) {
     else if (path === '/dramas/1') data = { id: 1, episodes: [episode], characters: [], scenes: [], props: [], style: 'archive', aspect_ratio: '16:9' }
     else if (path === '/episodes/2' && req.method === 'PUT') Object.assign(episode, body)
     else if (path === '/episodes/2/storyboards') data = shots
+    else if (path === '/episodes/2/generation-tasks') data = { tasks: [] }
     else if (/^\/episodes\/2\/(characters|scenes|props)$/.test(path)) data = []
     else if (path === '/ai-configs' || path === '/ai-configs/3') data = path.endsWith('/3') ? configs[0] : configs
     else if (path === '/style-presets') data = [{ id: 9, value: 'archive', name: 'Archive', prompt: 'VHS texture', is_active: true }]
@@ -37,7 +38,7 @@ async function fixture(agentTimeout = 500) {
       await new Promise(r => setTimeout(r, delay))
       if (agentStatus !== 200) { res.writeHead(agentStatus); res.end(JSON.stringify({ code: agentStatus, message: 'NEVER_RETURN_THIS' })); return }
       if (path.includes('script_rewriter')) episode.script_content = 'Native generated screenplay'
-      if (path.includes('prompt_generator')) shots[0].video_prompt = 'Native generated video prompt'
+      if (path.includes('prompt_generator')) shots[0].video_prompt = incompletePrompt ? 'Native generated video prompt' : '【画面起点】门前静止。【动作节奏】抬手又放下。【摄影】固定中景。【光色与材质】侧面柔光，哑光木门。【声音】旁白：这是逐字台词。【结束与衔接】手落到身体侧面。'
       data = { type: 'done', text: 'NEVER_RETURN_THIS', toolResults: [{ secret: 'NEVER_RETURN_THIS' }] }
     } else if (path === '/tasks/8') data = { id: 8, dramaId: 1, storyboardId: 4, prompt: 'VHS texture，\n逐字台词', params: JSON.stringify({ generateAudio: false, promptExtend: false, duration: 6, api_key: 'NEVER_RETURN_THIS', headers: { authorization: 'NEVER_RETURN_THIS' } }) }
     else if (path === '/tasks' && req.method === 'POST') data = { id: 8 }
@@ -48,7 +49,7 @@ async function fixture(agentTimeout = 500) {
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
   const options = { apiBase: `http://127.0.0.1:${(server.address() as any).port}/api/v1`, dataDir: dir, publicUrl: 'http://localhost:5680/mcp', origins: [], agentTimeout, pollMs: 60000 }
   let app = createExtension(options); app.ledger.state.enabled = true; app.ledger.save()
-  return { episode, shots, calls, uploads, dir, get app() { return app }, setDelay(ms: number) { delay = ms }, failAgent() { agentStatus = 400 },
+  return { episode, shots, calls, uploads, dir, get app() { return app }, setDelay(ms: number) { delay = ms }, incompletePrompt() { incompletePrompt = true }, failAgent() { agentStatus = 400 },
     async restart() { await app.close(); app = createExtension(options) },
     async close() { await app.close(); server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); await rm(dir, { recursive: true, force: true }) },
   }
@@ -76,6 +77,35 @@ test('requirements use native episode descriptions, roundtrip both directions, p
     f.episode.description = mergeRequirements(f.episode.description, { ...req, must_keep: ['Web edit'] })
     assert.deepEqual((await f.app.workbench.invoke('hb_get_production_requirements', scope)).requirements.must_keep, ['Web edit'])
     await assert.rejects(f.app.workbench.invoke('hb_update_production_requirements', { ...args, request_key: 'stale-save' }), /Description changed/)
+  } finally { await f.close() }
+})
+
+test('MCP editorial checks equal web checks, remain read-only and reject a foreign shot', async () => {
+  const f = await fixture()
+  try {
+    const req = { ...emptyRequirements(), target_duration_seconds: 12 }
+    f.episode.description = mergeRequirements('', req)
+    Object.assign(f.shots[0], { storyboard_number: 1, image_prompt: '尚未惊讶', result: '已经惊讶' })
+    f.shots.push({ id: 5, storyboard_number: 2, duration: 6, description: '听笑声，才转头', image_prompt: '依然看镜子' })
+    f.app.ledger.state.enabled = false
+    await assert.rejects(f.app.workbench.invoke('hb_get_production_checks', { ...scope, storyboard_id: 4 }), /Enable MCP/)
+    f.app.ledger.state.enabled = true
+    const result = await f.app.workbench.invoke('hb_get_production_checks', { ...scope, storyboard_id: 4 })
+    assert.deepEqual(result, productionChecks(f.shots, req, 4, f.episode.script_content))
+    assert.equal(result.source_script, 'Approved script')
+    assert.equal(result.editorial_review.automatic_approval, false)
+    assert.equal(result.continuity.next.id, 5)
+    const overview = await f.app.workbench.invoke('hb_get_production_checks', scope)
+    assert.equal(overview.storyboard_seconds, 12)
+    assert.equal(overview.continuity, null)
+    assert.equal(f.episode.script_content, 'Approved script')
+    f.episode.script_content = 'Revised screenplay with a visible light change'
+    assert.equal((await f.app.workbench.invoke('hb_get_production_checks', scope)).source_script, f.episode.script_content)
+    f.episode.script_content = ''
+    assert.equal((await f.app.workbench.invoke('hb_get_production_checks', scope)).source_script, f.episode.content)
+    await assert.rejects(f.app.workbench.invoke('hb_get_production_checks', { ...scope, storyboard_id: 999 }), /not in this episode/)
+    assert.ok(f.calls.every(c => c.method === 'GET'))
+    assert.equal(f.episode.script_content, '')
   } finally { await f.close() }
 })
 test('native Agent receives the same message as webpage, immediate receipt, dedupe and readback evidence', async () => {
@@ -131,12 +161,18 @@ test('single and native batch prompts enforce explicit episode scope without inv
     const single = await f.app.workbench.invoke('hb_generate_video_prompts', { ...scope, request_key: 'native-single', mode: 'single', storyboard_ids: [4] })
     await poll(f, single.call_id)
     assert.equal(f.episode.script_content, 'Approved script')
-    assert.equal(f.shots[0].video_prompt, 'Native generated video prompt')
+    assert.match(f.shots[0].video_prompt, /【光色与材质】/)
+    const message = f.calls.find(c => c.path === '/agent/prompt_generator/chat').body.message
+    assert.match(message, /已保存分镜的补充数据/)
+    assert.match(message, /"start_frame"/)
+    assert.match(message, /"camera"/)
+    assert.match(message, /"style_prompt":"VHS texture"/)
   } finally { await f.close() }
 })
 test('preview and plan carry audio, rewrite, first/last frames and style; task secrets stay private', async () => {
   const f = await fixture()
   try {
+    f.shots[0].result = mergeContinuity('', { version: 1, transition: 'start', reason: 'Opening', space: 'Empty room', camera: 'Wide static', start: [], end: [] })
     const options = { mode: 'first_last', first_frame_url: '/first.png', last_frame_url: '/last.png', generate_audio: false, prompt_extend: false, seed: 42 }
     const preview = await f.app.workbench.invoke('hb_inspect_video_input', { ...scope, storyboard_id: 4, options })
     const plan = await f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [{ kind: 'storyboard_video', target_id: 4, video_options: options }] })
@@ -156,6 +192,31 @@ test('preview and plan carry audio, rewrite, first/last frames and style; task s
     assert.ok(!(await readFile(join(f.dir, 'state.json'), 'utf8')).includes('NEVER_RETURN_THIS'))
   } finally { await f.close() }
 })
+
+test('MCP blocks unplanned and stale continuity before a native video submission', async () => {
+  const f = await fixture()
+  try {
+    const action = { kind: 'storyboard_video', target_id: 4 }
+    const unplanned = await f.app.workbench.invoke('hb_inspect_video_input', { ...scope, storyboard_id: 4 })
+    assert.equal(unplanned.continuity.issues[0].code, 'missing_plan')
+    await assert.rejects(f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [action] }), /尚未填写/)
+    const base = { version: 1, transition: 'start', reason: 'Opening', space: 'Empty room', camera: 'Wide static', start: [], end: [] }
+    f.shots[0].storyboard_number = 1; f.shots[0].result = mergeContinuity('', base); f.shots[0].video_url = '/previous.mp4'
+    f.shots.push({ ...f.shots[0], id: 5, storyboard_number: 2, result: mergeContinuity('', { ...base, transition: 'continuous' }), video_url: '' })
+    const options: any = { mode: 'first_frame', first_frame_url: '/handoff.png' }
+    const preview = await f.app.workbench.invoke('hb_inspect_video_input', { ...scope, storyboard_id: 5, options })
+    options.continuity_review = { snapshot: preview.continuity.review_snapshot, frame_url: '/handoff.png' }
+    await assert.rejects(f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [action, { ...action, target_id: 5, video_options: options }] }), /批次/)
+    const plan = await f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [{ ...action, target_id: 5, video_options: options }] })
+    f.shots[0].video_url = '/replacement.mp4'
+    const run = await f.app.workbench.invoke('hb_start_run', { request_key: 'stale-handoff', plan_id: plan.id })
+    await f.app.workbench.production.tick()
+    const current = f.app.workbench.production.get(run.id)
+    assert.equal(current.status, 'needs_attention')
+    assert.equal(current.steps[0].error.code, 'CONTINUITY')
+    assert.ok(f.calls.every(c => c.path !== '/tasks' || c.method !== 'POST'))
+  } finally { await f.close() }
+})
 test('bounded multipart upload accepts remote chunks, rejects offset/hash errors and deduplicates final submit', async () => {
   const f = await fixture()
   try {
@@ -169,5 +230,47 @@ test('bounded multipart upload accepts remote chunks, rejects offset/hash errors
     assert.equal(result.path, 'static/upload.mp4'); await f.app.workbench.invoke('hb_upload_finish', finish)
     assert.equal(f.uploads.length, 1); assert.ok(f.uploads[0].includes(bytes))
     await assert.rejects(f.app.workbench.invoke('hb_upload_begin', { request_key: 'huge-audio', kind: 'audio', filename: 'test.mp3', size_bytes: 21 * 1024 * 1024, sha256 }), /limit/)
+  } finally { await f.close() }
+})
+
+test('default breakdown automatically completes nonempty brief video prompts and reports section evidence', async () => {
+  const f = await fixture()
+  try {
+    const call = await f.app.workbench.invoke('hb_breakdown_storyboards', { ...scope, request_key: 'breakdown-complete', expected_hash: hash(f.episode.script_content), scope: 'replace_episode' })
+    const receipt = await poll(f, call.call_id)
+    assert.equal(receipt.status, 'response_received')
+    assert.equal(receipt.prompt_completion.status, 'specified')
+    assert.equal(receipt.prompt_completion.semantic_approval, false)
+    assert.deepEqual(receipt.prompt_completion.generated, [4])
+    assert.deepEqual(f.calls.filter(c => c.path.startsWith('/agent/')).map(c => c.path), ['/agent/storyboard_breaker/chat', '/agent/prompt_generator/chat'])
+    assert.ok(!f.calls.some(c => c.path === '/tasks' && c.method === 'POST'))
+  } finally { await f.close() }
+})
+test('default prompt batch uses enhanced context, and incomplete readback needs attention without retries', async () => {
+  const f = await fixture()
+  try {
+    f.incompletePrompt()
+    const call = await f.app.workbench.invoke('hb_generate_video_prompts', { ...scope, request_key: 'enhanced-default', storyboard_ids: [4] })
+    const receipt = await poll(f, call.call_id)
+    assert.equal(receipt.status, 'needs_attention')
+    assert.equal(receipt.error.code, 'PROMPT_INCOMPLETE')
+    assert.equal(receipt.prompt_completion.semantic_approval, false)
+    assert.equal(f.calls.filter(c => c.path === '/agent/prompt_generator/chat').length, 1)
+    assert.ok(!f.calls.some(c => c.path.endsWith('/generate-video-prompts')))
+  } finally { await f.close() }
+})
+test('MCP camera cut accepts reference mode without a fabricated frame review, preserving explicit frame checks', async () => {
+  const f = await fixture()
+  try {
+    const plan = { version: 1, transition: 'start', reason: 'Opening', space: 'bed left, window back', camera: 'door wide', start: [], end: [] }
+    f.shots.unshift({ id: 3, duration: 6, result: mergeContinuity('', plan), video_url: '/previous.mp4', character_ids: [] })
+    f.shots[1].result = mergeContinuity('', { ...plan, transition: 'cut', reason: 'Closer angle', camera: 'door medium close' })
+    const action = { kind: 'storyboard_video', target_id: 4, video_options: { mode: 'reference' } }
+    const preview = await f.app.workbench.invoke('hb_inspect_video_input', { ...scope, storyboard_id: 4, options: action.video_options })
+    assert.equal(preview.continuity.requires_first_frame, false)
+    const ready = await f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [action] })
+    assert.equal(ready.steps[0].body.first_frame_url, undefined)
+    await assert.rejects(f.app.workbench.invoke('hb_plan_production', { ...scope, actions: [{ ...action, video_options: { mode: 'first_frame', first_frame_url: '/frame.png' } }] }), /核对/)
+    assert.ok(!f.calls.some(c => c.path === '/tasks' && c.method === 'POST'))
   } finally { await f.close() }
 })

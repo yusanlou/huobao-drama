@@ -1,0 +1,57 @@
+{
+  "checked_at": "2026-10-04T17:26:41.041Z",
+  "native_config_readbacks": [
+    "/prompts/script_rewriter?lang=zh",
+    "/prompts/storyboard_breaker?lang=zh",
+    "/prompts/prompt_generator?lang=zh",
+    "/skills/script-rewriter?lang=zh",
+    "/skills/storyboard-breaker?lang=zh",
+    "/skills/prompt-generator/video-prompt?lang=zh",
+    "/prompts/script_rewriter?lang=en",
+    "/prompts/storyboard_breaker?lang=en",
+    "/prompts/prompt_generator?lang=en",
+    "/skills/script-rewriter?lang=en",
+    "/skills/storyboard-breaker?lang=en",
+    "/skills/prompt-generator/video-prompt?lang=en",
+    "/prompts/script_rewriter?lang=ja",
+    "/prompts/storyboard_breaker?lang=ja",
+    "/prompts/prompt_generator?lang=ja",
+    "/skills/script-rewriter?lang=ja",
+    "/skills/storyboard-breaker?lang=ja",
+    "/skills/prompt-generator/video-prompt?lang=ja",
+    "/prompts/script_rewriter?lang=ko",
+    "/prompts/storyboard_breaker?lang=ko",
+    "/prompts/prompt_generator?lang=ko",
+    "/skills/script-rewriter?lang=ko",
+    "/skills/storyboard-breaker?lang=ko",
+    "/skills/prompt-generator/video-prompt?lang=ko"
+  ],
+  "current_project_unchanged": {
+    "/dramas/4": true,
+    "/episodes/4/storyboards": true,
+    "/episodes/4/characters": true,
+    "/episodes/4/scenes": true,
+    "/episodes/4/props": true
+  },
+  "text_evaluation": [
+    {
+      "variant": "baseline",
+      "cases": 6,
+      "duration_matches": 6,
+      "agent_responses": 12
+    },
+    {
+      "variant": "enhanced",
+      "cases": 6,
+      "duration_matches": 6,
+      "agent_responses": 12
+    }
+  ],
+  "semantic_approval": false,
+  "media_generated": false,
+  "notes": [
+    "Only configuration differs between A/B groups; both use identical inputs, requirements and shared Agent messages.",
+    "Cases are development regression examples, not held-out or blind validation.",
+    "Some generated prose still needs editorial revision; see delivery report."
+  ]
+}

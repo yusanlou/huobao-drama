@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync, fsyncSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { ContractError, videoParameterKeys } from '../../../shared/production.mjs'
+import { ContractError, ContinuityError, PromptCompletionError, videoParameterKeys } from '../../../shared/production.mjs'
 
 export type Row = Record<string, any>
 export const now = () => new Date().toISOString()
@@ -10,7 +10,7 @@ export const hash = (value: unknown): string => createHash('sha256').update(JSON
 export class Fault extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message) }
 }
-export const failure = (e: unknown) => e instanceof Fault || e instanceof ContractError
+export const failure = (e: unknown) => e instanceof Fault || e instanceof ContractError || e instanceof ContinuityError || e instanceof PromptCompletionError
   ? { code: e.code, message: e.message }
   : { code: 'INTERNAL_ERROR', message: 'Extension operation failed; inspect local service health.' }
 export function requireValue(condition: unknown, code: string, message: string): asserts condition {

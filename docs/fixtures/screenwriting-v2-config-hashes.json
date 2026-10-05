@@ -1,0 +1,125 @@
+{
+  "configurations": [
+    {
+      "path": "/prompts/script_rewriter?lang=zh",
+      "baseline_sha256": "3c5e3f428d4a7d89a52464b50acd4d41ce254244b0b9b7020a7623bc8070ca4e",
+      "candidate_sha256": "974788eb815a812efc401101dc08d9033b34d891ea3adedd53abcddf0dcf9796"
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=zh",
+      "baseline_sha256": "93431bff0b858a2ac19f0b527fc2da486875af6cb93420974f327cbf2c410ab7",
+      "candidate_sha256": "86f3c0c5a40489efffc422d2b48d4eb78c41af25d16c2646495fcb11fb2202a1"
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=zh",
+      "baseline_sha256": "92816c091d5187eea0566d6bf3800f86f0b92419912673de667b3c10de962e10",
+      "candidate_sha256": "28b3f530c35e7bfb3142c7e3c20f9e6e17c789a95642cc381f8aa48b54321236"
+    },
+    {
+      "path": "/skills/script-rewriter?lang=zh",
+      "baseline_sha256": "8e5bf6cffcde7be15f0d63ec1f7e0977d1e66c47a103cedbdd2f0ef26eeefc8e",
+      "candidate_sha256": "87c8797ac3ac553cd1767a36b0df17875750c4d31fc7f87f183eb58c59c6e724"
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=zh",
+      "baseline_sha256": "307fdc1a55528bbaa27ddac5e7a10ccfb1a46374ebbd72a94196d7048c3e6cf6",
+      "candidate_sha256": "7cc551bcd85809ba54203f4f2c1263bed0aebdc586b44f9556dd5a35c6107733"
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=zh",
+      "baseline_sha256": "7cd675b0545b1b3290b55c6b4cb3461234b106c1247514a80fc9a6b3daba766d",
+      "candidate_sha256": "c39478dfaf25e767368b5d5fd637b32da0cbd2de675026f2fc26b6d22d18b55f"
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=en",
+      "baseline_sha256": "96d0754bcfa8884f4f3e3faa471915e3b99b812d01f1d9b564dcfbd4238f71a6",
+      "candidate_sha256": "5aae27a509818ca9e949715c306b45d1626102606110e465b54c60fabc91ebee"
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=en",
+      "baseline_sha256": "35b5a89d54489c3f7fb8922cddbe0e3f0a91b55baa0f6d98babf805a0895b3e0",
+      "candidate_sha256": "4c08ad94420e96b01b6bc20820974808e25e57b5b88947c6a67c793fdb85590d"
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=en",
+      "baseline_sha256": "222cd24dab4a480caf740ff4a956155c026e2467b58725bb3ed11fee11c0b4d7",
+      "candidate_sha256": "88da868f04cbda39543bebf5f7815b881798c8419155409a8bfe94564f4f3013"
+    },
+    {
+      "path": "/skills/script-rewriter?lang=en",
+      "baseline_sha256": "e582866cf7dbed79ee4422c080ac228b33c2949c96b3278f2c918fc9506f515f",
+      "candidate_sha256": "2e993b01b75e463c22ce0928b17cd5fc214e5e21a52033825f531189549a363c"
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=en",
+      "baseline_sha256": "37d8d61b76015253ddf0d58a54a2bb2213d7534b6944c7a190d9b2998aa859f2",
+      "candidate_sha256": "333a01ad96606cb1d753b7cfabf3201fe1c7fd439f905c0134b67ee54ec83314"
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=en",
+      "baseline_sha256": "8e01062f14e828b9f329400d627961ea3bf8ba226139fcc5eb2e91da4213c00b",
+      "candidate_sha256": "3a62c1652099a0e1e278c02f65024ce895ab57bd454f22e3dca72e754be85ff5"
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=ja",
+      "baseline_sha256": "fabd337a80dff78f66e0fcb64da572e4b563341bc8d0e02a47645caa4fe3f083",
+      "candidate_sha256": "8c0383da0d367db1b2f3c82dce7199ef79e7323e21409a7bb6fd64f68badcc51"
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=ja",
+      "baseline_sha256": "165d59e61c14e785e8573c182f574cab58f9ece22917abfaebb9c827c9ddbc96",
+      "candidate_sha256": "228a0b68cf6b45e9169be935f0b2cf53ab871b3c6c4a49a9b2bd3d19a8dfec4f"
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=ja",
+      "baseline_sha256": "2019dab8f41c825adb373c88a9fd0f80df4b6afe8209348823289f9d401cc7dd",
+      "candidate_sha256": "952c46d0514f304797a27262519561a9f0ba18b77c350a4e27ccda34d53ef26f"
+    },
+    {
+      "path": "/skills/script-rewriter?lang=ja",
+      "baseline_sha256": "a8f6286d4254ff3a1e9ad849a199b361fa9c2b6846cd775c4863199542a13525",
+      "candidate_sha256": "e88490b88ec759f05981ec4a1feebb8a41b856519c1e05d3d1b51adf9ee12179"
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=ja",
+      "baseline_sha256": "1e2d64f4bcf48f4582ce70e817add123ea1a8deafeaa4694a3655cd0606f5edf",
+      "candidate_sha256": "db096cd0d9c9442a5489b86514cc510ba670063034180db9f25e93a1716065a9"
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=ja",
+      "baseline_sha256": "4254481b0bc3555c89f445b70a473fdca46afbd02d28d597ad1f3aa63899117e",
+      "candidate_sha256": "36a82eec70103ece70b935d4e03834bb4ed8105a491e5ee569c6d57e95660098"
+    },
+    {
+      "path": "/prompts/script_rewriter?lang=ko",
+      "baseline_sha256": "59a5eafa5a149978f4846f35aa3cdf4f0c4311daae10e3cebffc9fad20a67723",
+      "candidate_sha256": "c258678cc79dcceabcdfd69786259e3a130a1e02661abbe97e0b1c3d4b2b6ee1"
+    },
+    {
+      "path": "/prompts/storyboard_breaker?lang=ko",
+      "baseline_sha256": "22eacf7a9e359aac44fee32b8f9e4be348708403b88ad895e32bee61095d485c",
+      "candidate_sha256": "317b35e2d2b78b4421d4ae01b884720947ef4225068c3cd7c515674a6472d0e6"
+    },
+    {
+      "path": "/prompts/prompt_generator?lang=ko",
+      "baseline_sha256": "bd9a661f55242a9cfe842e146fa9e721b09671f4ed087b97bbcc381cb666f4e9",
+      "candidate_sha256": "e3ec705267029941c993661576cecfc9d21dbcbf0d0633ad4d369244f88953b2"
+    },
+    {
+      "path": "/skills/script-rewriter?lang=ko",
+      "baseline_sha256": "f984c1a2b1be2ce99bff70667f27d0a4675f06ec4c1bb648d69af7a0645df63c",
+      "candidate_sha256": "8141109774b3ff7182c09f86a88ff0e46dff3c468f191f2a0dda80c6785dbcce"
+    },
+    {
+      "path": "/skills/storyboard-breaker?lang=ko",
+      "baseline_sha256": "ef8cc59d49825abe0e4aaea13e1c4c8ff613b510c9312d8aecbe4ce93528fe8d",
+      "candidate_sha256": "bef54f0085f944cadbd14d6c547c98ff09cb4c1a48577d867860fe6182ac76ed"
+    },
+    {
+      "path": "/skills/prompt-generator/video-prompt?lang=ko",
+      "baseline_sha256": "5f982fdb928a8688d735f93b81b6d82fc92fb08119cbfb65c04efaea44d0ddaa",
+      "candidate_sha256": "abbf9f77a7ba60e22f1c36cc8736ad53b4067f94b708204e4ffab7f058ec1a9f"
+    }
+  ],
+  "comparison_scope": "same sources, requirements and text configuration; development regression cases, not a blind or held-out benchmark"
+}

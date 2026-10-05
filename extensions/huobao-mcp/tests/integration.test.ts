@@ -12,6 +12,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { createExtension } from '../src/server.js'
 import { schemas } from '../src/tools.js'
 import { hash } from '../src/core.js'
+import { mergeContinuity } from '../../../shared/production.mjs'
 
 async function fixture() {
   const calls: { path: string; method: string; body: any }[] = []
@@ -23,6 +24,8 @@ async function fixture() {
   const scenes: any[] = [{ id: 4, location: '竹林', image_url: '/static/forest.png' }]
   const props: any[] = []
   const shots: any[] = [{ id: 5, episode_id: 2, storyboard_number: 1, description: 'shot', video_prompt: '@阿青 走进 @竹林', character_ids: [3], prop_ids: [], scene_id: 4, duration: 5, video_url: '/static/old.mp4' }]
+  const state = { id: 3, position: 'forest entrance', pose: 'standing', appearance: 'unchanged clothes', visible: true }
+  shots[0].result = mergeContinuity('', { version: 1, transition: 'start', reason: 'Opening', space: 'Bamboo forest', camera: 'Wide static', start: [state], end: [state] })
   const upstream = createServer(async (req, res) => {
     let raw = ''; for await (const c of req) raw += c
     const body = raw ? JSON.parse(raw) : undefined
@@ -42,6 +45,7 @@ async function fixture() {
     else if (path === '/episodes/2/scenes') data = scenes
     else if (path === '/episodes/2/props') data = props
     else if (path === '/episodes/2/storyboards') data = shots
+    else if (path === '/episodes/2/generation-tasks') data = { tasks: [] }
     else if (path === '/props' && req.method === 'POST') {
       if (failProps && body.name === 'bad') { res.writeHead(500); res.end(JSON.stringify({ code: 500, message: 'secret DO_NOT_LEAK' })); return }
       data = { id: ++nextId, ...body }; props.push(data)
@@ -167,7 +171,8 @@ test('production prepares ordered references, persists run IDs, pauses future di
   try {
     await f.enable(true)
     const plan = await f.app.workbench.invoke('hb_plan_production', { project_id: 1, episode_id: 2, actions: [{ kind: 'storyboard_video', target_id: 5 }] })
-    assert.equal(plan.steps[0].body.prompt, '@图片2阿青 走进 @图片1竹林')
+    assert.ok(plan.steps[0].body.prompt.startsWith('@图片2阿青 走进 @图片1竹林\n'))
+    assert.match(plan.steps[0].body.prompt, /接续约束/)
     assert.deepEqual(plan.steps[0].body.reference_image_urls, ['/static/forest.png', '/static/a.png'])
     assert.equal(plan.steps[0].overwrites_current, true)
     const run = await f.app.workbench.invoke('hb_start_run', { plan_id: plan.id, request_key: 'video-run-1' })

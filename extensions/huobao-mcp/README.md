@@ -98,6 +98,7 @@ npm --prefix extensions/huobao-mcp start
 | `hb_generate_video_prompts` | 单镜调用原 Agent；整批复用原批量接口，必须给出明确 ID |
 | `hb_get_call` | 查询原同步 Agent 的 MCP 请求回执；不是新的业务任务 |
 | `hb_inspect_video_input` | 生成前检查提示、素材、音轨、首尾帧、参数及风格预测，不启动生成 |
+| `hb_get_production_checks` | 读取与网页一致的时长、台词和叙事对照材料；可选 `storyboard_id` 查看前镜末态、本镜起始画面/末态及后镜起点。只读，不调用模型；问题清单不等于品质已通过 |
 | `hb_project_action` / `hb_episode_action` | 原项目/剧集详情、修改、删除、提取与进度、生成/合成历史 |
 | `hb_asset_action` / `hb_storyboard_action` | 原资产/分镜读取、删除、媒体绑定、资产最终提示生成 |
 | `hb_task_action` | 精确查询历史任务、安全提交参数、删除记录（不取消生成） |
@@ -178,3 +179,9 @@ npm run build:frontend
 当前已验证标准 SDK 的 HTTP 客户端、stdio 桥接、真实网页免配对连接/开关/复制，以及原后端内容写入。尚未逐一实测 Codex、Claude、Cursor 产品自身的设置流程，不将协议通过等同于所有客户端验证完成。真实 Provider 的付费图片/视频及 FFmpeg 成片生成尚未实测，相关编排在模拟上游中验证。
 
 0.2.0 验收：17 项 MCP 测试、8 项新增前端测试、原后端隔离联通及配置恢复、前端静态构建均通过。原前端全量测试保留 24 项既有失败，与干净基线一致。原文字 Agent 已用两个隔离样例实测，视频样片按用户选择未生成。完整结果、已知限制及配置备份见[实施验收记录](../../docs/huobao-professional-video-implementation-results.md)。
+# Cross-shot continuity
+
+See [continuity implementation and usage](../../docs/huobao-continuity-prevention.md). Video production now requires a valid continuity block in the existing storyboard `result`. `hb_get_production_checks` reports structural handoff issues; `hb_inspect_video_input` supplies the same plan, predecessor and review snapshot as the web page. After actually viewing the preceding ending and proposed first frame, supply `video_options.continuity_review: { snapshot, frame_url }` and use that image as `first_frame_url` in a supported first-frame mode. Dependent shots cannot share a production plan, even when dispatch is serial. Changed source/frames invalidate reviews. These are client entry-point safeguards, not server-side access controls or an automatic visual-quality verdict.
+
+
+默认拆分会使用与网页相同的视频提示词规范，并在保存后自动补全缺失的信息段。`hb_generate_video_prompts` 默认 `batch`（或单镜 `single`）返回可查询回执；显式 `native_batch` 仅保留旧异步接口兼容。结构检查不等于语义验收；失败或未变化的提示词需要核对，不自动重试。详见 [默认提示词修正](../../docs/huobao-default-video-prompts.md)。

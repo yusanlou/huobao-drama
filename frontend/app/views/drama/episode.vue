@@ -490,12 +490,12 @@
               <span class="tag mono">{{ t('episode.sb.segmentStat', { n: sbs.length, dur: totalDuration }) }}</span>
               <span class="tag mono" :title="t('episode.vid.aspectRatio')">{{ dramaAspectRatio }}</span>
               <div class="ml-auto flex gap-1">
-                <button class="btn btn-sm" :title="t('professional.rebuildHint')" :disabled="rn || preparingAgent" @click="doBreakdown">
+                <button class="btn btn-sm" :title="t('professional.rebuildHint')" :disabled="rn || preparingAgent || videoPromptBatch.running || videoPromptGeneratingIds.length" @click="doBreakdown">
                   <Loader2 v-if="rt === 'storyboard_breaker'" :size="11" class="animate-spin" />
                   <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {{ sbs.length ? t('episode.sb.rebreak') : t('episode.sb.startBreak') }}
                 </button>
-                <button class="btn btn-sm" :disabled="videoPromptBatch.running || !sbs.length" @click="batchVideoPrompts">
+                <button class="btn btn-sm" :disabled="rn || preparingAgent || videoPromptBatch.running || videoPromptGeneratingIds.length || !sbs.length" @click="batchVideoPrompts">
                   <Loader2 v-if="videoPromptBatch.running" :size="11" class="animate-spin" />
                   <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   {{ videoPromptBatch.running ? t('episode.sb.promptProgress', { done: videoPromptBatch.completed, total: videoPromptBatch.total }) : (videoSelectMode && selectedVideoSbIds.length ? t('episode.sb.promptSelected', { n: selectedVideoSbIds.length }) : t('episode.sb.batchPrompts')) }}
@@ -520,7 +520,7 @@
               <div class="empty-title">{{ t('episode.sb.emptyTitle') }}</div>
               <div class="empty-desc">{{ t('episode.sb.emptyDesc') }}</div>
               <div class="locked-config-banner">{{ t('episode.vid.lockedModel') }}{{ effectiveVideoModelLabel }}</div>
-              <button class="btn btn-primary" :disabled="rn || preparingAgent" @click="doBreakdown">
+              <button class="btn btn-primary" :disabled="rn || preparingAgent || videoPromptBatch.running || videoPromptGeneratingIds.length" @click="doBreakdown">
                 <Loader2 v-if="rt === 'storyboard_breaker'" :size="13" class="animate-spin" />
                 <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 {{ t('episode.sb.startBreak') }}
@@ -672,7 +672,7 @@
                       <button
                         type="button"
                         class="btn btn-sm"
-                        :disabled="videoPromptGeneratingIds.includes(selectedSb?.id) || videoPromptBatch.running"
+                        :disabled="rn || preparingAgent || videoPromptGeneratingIds.length || videoPromptBatch.running"
                         @click="genVideoPrompt(selectedSb)"
                       >
                         <Loader2 v-if="videoPromptGeneratingIds.includes(selectedSb?.id)" :size="11" class="animate-spin" />
@@ -688,6 +688,7 @@
                       @commit="v => updateField(selectedSb, 'video_prompt', v)"
                     />
                     <VideoInputOptions v-model="videoOptions" :capabilities="videoCaps" :default-audio="productionRequirements.speech_mode !== 'none'" @upload="uploadVideoInput" />
+                    <ContinuityPlan :shot="selectedSb" :check="selectedContinuity" :characters="chars" :mode="videoOptions.mode" :frame-url="videoOptions.first_frame_url" :reviewed="continuityReviewed" :saving="continuitySaving" @save="saveContinuityPlan" @review="reviewContinuity" @capture="captureContinuityFrame" @dirty="continuityDraftDirty = $event" />
                     <ProductionChecks :checks="shotChecks" :preview="videoPreview.value" :error="videoPreview.error" :record="videoSubmissionRecord" />
                   </section>
               </div>
@@ -695,6 +696,7 @@
 
               <aside class="video-task-inspector">
             <aside class="video-task-player">
+              <p v-if="videoPreparationError" class="video-preparation-error" role="status">{{ videoPreparationError }}</p>
               <div class="video-player-head">
                 <div class="video-player-head-info">
                   <div class="video-player-title">{{ t('episode.vid.playerTitle', { n: String(selectedVideoTaskNumber).padStart(2, '0') }) }}</div>
@@ -1444,7 +1446,7 @@ import { useAgent } from '~/composables/useAgent'
 import { toastError, mapError, MODERATION_RE } from '~/composables/useToast'
 import LocaleSwitcher from '~/components/LocaleSwitcher.vue'
 import { useProductionRequirements } from '~/composables/useProductionRequirements'
-import { agentMessage, boundAssets, inspectVideoInput, videoCapabilities, productionChecks } from '../../../shared-production'
+import { ContinuityError, agentMessage, completeVideoPrompts, boundAssets, inspectVideoInput, videoCapabilities, productionChecks, continuityCheck, continuitySnapshot, mergeContinuity, assertContinuityInput, assertContinuityBatch, assertContinuityTasks } from '../../../shared-production'
 
 definePageMeta({ layout: 'studio' })
 
@@ -1939,6 +1941,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  videoPromptPageActive = false
   window.removeEventListener('keydown', handleImageViewerKeydown)
   stopGenTasksPolling()
 })
@@ -2150,10 +2153,49 @@ const videoCaps = computed(() => { try { return videoCapabilities(selectedVideoC
 watch(() => [selectedVideoConfig.value?.provider, effectiveVideoModelLabel.value], () => { videoOptions.value = { mode: 'reference' } })
 function videoInput(sb) {
   const style = videoStyles.value.find(s => s.value === drama.value?.style && s.is_active)
-  return inspectVideoInput({ project: drama.value, episode: { ...episode.value, resolution: episodeResolution.value }, shot: sb, characters: chars.value, scenes: scenes.value, props: propItems.value, config: selectedVideoConfig.value, options: { ...videoOptions.value, model: effectiveVideoModelLabel.value }, style_prompt: style?.prompt || '' })
+  return inspectVideoInput({ ...continuityContext(sb), episode: { ...episode.value, resolution: episodeResolution.value }, config: selectedVideoConfig.value, options: { ...videoOptions.value, model: effectiveVideoModelLabel.value }, style_prompt: style?.prompt || '' })
+}
+function continuityContext(sb) { return { project: drama.value, episode: episode.value, shot: sb, storyboards: sbs.value, characters: chars.value, scenes: scenes.value, props: propItems.value } }
+const continuitySaving = ref(false)
+const continuityDraftDirty = ref(false)
+const selectedContinuity = computed(() => continuityCheck(sbs.value, selectedSb.value?.id))
+const continuityReviewed = computed(() => !!selectedSb.value && !!videoOptions.value.first_frame_url && videoOptions.value.continuity_review?.frame_url === videoOptions.value.first_frame_url && videoOptions.value.continuity_review?.snapshot === continuitySnapshot(continuityContext(selectedSb.value)))
+function reviewContinuity(checked) {
+  const next = { ...videoOptions.value }; delete next.continuity_review
+  if (checked) next.continuity_review = { snapshot: continuitySnapshot(continuityContext(selectedSb.value)), frame_url: next.first_frame_url }
+  videoOptions.value = next
+}
+async function saveContinuityPlan({ plan, originalResult }) {
+  const id = selectedSb.value.id, episodeId = epId.value
+  continuitySaving.value = true
+  try {
+    const latest = (await episodeAPI.storyboards(episodeId)).find(s => s.id === id)
+    if (!latest || (latest.result || '') !== originalResult) throw Error(t('continuity.conflict'))
+    const result = mergeContinuity(latest.result || '', plan)
+    await storyboardAPI.update(id, { result })
+    const saved = (await episodeAPI.storyboards(episodeId)).find(s => s.id === id)
+    if (saved?.result !== result) throw Error(t('continuity.conflict'))
+    await refresh(); toast.success(t('episode.script.saved'))
+  } catch (e) { toastError(e) } finally { continuitySaving.value = false }
+}
+async function captureContinuityFrame({ file, shotId }) {
+  try {
+    const uploaded = await uploadAPI.image(file), url = uploaded.url || uploaded.path
+    if (!url) throw Error('Upload returned no URL.')
+    if (selectedSb.value?.id !== shotId) return
+    videoOptions.value = { mode: 'first_frame', first_frame_url: url }
+  } catch (e) { toastError(e) }
 }
 const videoPreview = computed(() => { try { return selectedSb.value ? { value: videoInput(selectedSb.value), error: '' } : {} } catch (e) { return { error: e.message } } })
-const shotChecks = computed(() => productionChecks(sbs.value, productionRequirements.value, selectedSb.value?.id))
+const videoPreparationError = computed(() => {
+  if (!selectedSb.value) return ''
+  if (continuityDraftDirty.value) return t('continuity.saveBeforeGenerate')
+  try {
+    assertContinuityInput(continuityContext(selectedSb.value), videoInput(selectedSb.value).body, videoOptions.value)
+    return ''
+  } catch (e) { return mapError(e) }
+})
+const shotChecks = computed(() => productionChecks(sbs.value, productionRequirements.value, selectedSb.value?.id, scriptContent.value || rawContent.value))
 const videoSubmissionRecord = computed(() => {
   const record = sbVideoHistory.value.find(item => previewVideoUrl.value ? taskVideoPath(item) === previewVideoUrl.value : isCurrentVideo(item))
   if (!record) return null
@@ -2193,13 +2235,19 @@ function batchVideos() {
 function retryFailedVideos() {
   openBatchVideoConfirm(sbs.value.filter(s => videoTaskState(s) === 'failed'))
 }
-function confirmBatchVideos() {
+async function confirmBatchVideos() {
   const targets = [...batchVideoConfirm.value.targets]
   batchVideoConfirm.value = { open: false, targets: [] }
   if (!targets.length) return
   const ids = targets.map(s => s.id)
-  targets.forEach(sb => genVid(sb, { silent: true }))
-  toast.success(t('episode.vid.batchStarted', { n: ids.length }))
+  try {
+    await saveRequirements(); await refresh(true)
+    assertContinuityBatch(sbs.value, ids)
+    for (const id of ids) { const shot = sbs.value.find(s => s.id === id); if (!shot) throw Error(t('continuity.conflict')); assertContinuityInput(continuityContext(shot), videoInput(shot).body, videoOptions.value) }
+  } catch (e) { toastError(e); return }
+  let submitted = 0
+  for (const id of ids) { if (!await genVid(sbs.value.find(s => s.id === id), { silent: true })) break; submitted++ }
+  if (submitted) toast.success(t('episode.vid.batchStarted', { n: submitted }))
   watchAsyncResult(() => ids.every(id => {
     const target = sbs.value.find(s => s.id === id)
     const done = !!getVideoUrl(target)
@@ -2558,6 +2606,8 @@ const currentSubStageLabel = computed(() => currentStageLabel.value)
 
 const totalDuration = computed(() => sbs.value.reduce((s, sb) => s + (sb.duration || 10), 0))
 const selectedSb = ref(null)
+// A first-frame/review belongs to one shot; never silently reuse it on the next.
+watch(() => selectedSb.value?.id, () => { videoOptions.value = { mode: 'reference' } })
 const selectedVideoTaskNumber = computed(() => {
   const index = videoTaskRows.value.findIndex(task => String(task.id) === String(selectedSb.value?.id))
   return index >= 0 ? index + 1 : 0
@@ -2643,15 +2693,15 @@ function sceneShotCount(sceneId) {
 watch(rawContent, v => { localRaw.value = v }, { immediate: true })
 watch(scriptContent, v => { localScript.value = v }, { immediate: true })
 
-async function refresh() {
+async function refresh(strict = false) {
   try {
     drama.value = await dramaAPI.get(dramaId)
     const ep = drama.value.episodes?.find(e => (e.episode_number || e.episodeNumber) === episodeNumber)
     if (ep) {
       episode.value = ep
-      try { chars.value = await episodeAPI.characters(ep.id) } catch { chars.value = [] }
-      try { scenes.value = await episodeAPI.scenes(ep.id) } catch { scenes.value = [] }
-      try { propItems.value = await episodeAPI.props(ep.id) } catch { propItems.value = [] }
+      try { chars.value = await episodeAPI.characters(ep.id) } catch (e) { if (strict) throw e; chars.value = [] }
+      try { scenes.value = await episodeAPI.scenes(ep.id) } catch (e) { if (strict) throw e; scenes.value = [] }
+      try { propItems.value = await episodeAPI.props(ep.id) } catch (e) { if (strict) throw e; propItems.value = [] }
       sbs.value = await episodeAPI.storyboards(ep.id)
       selectedVideoSbIds.value = selectedVideoSbIds.value.filter(id => sbs.value.some(sb => sb.id === id))
       if (sbs.value.length) {
@@ -2669,8 +2719,9 @@ async function refresh() {
         panelRestored = false
       } else if (epHasScript || epHasContent) scriptStep.value = 1
       else scriptStep.value = 0
-    }
+    } else if (strict) throw Error(t('continuity.conflict'))
   } catch (e) {
+    if (strict) throw e
     toastError(e)
   }
   try { mergeData.value = await mergeAPI.status(epId.value) } catch {}
@@ -2777,9 +2828,9 @@ async function syncExtractStatus() {
   } catch {}
 }
 
-// ─── 批量视频提示词：后端异步逐分镜生成，前端轮询进度 ──────────
+// ─── 视频提示词：默认规范 + 原 Agent 定向补全 + 保存后检查 ──────────
 const videoPromptBatch = ref({ running: false, total: 0, completed: 0 })
-// 单个视频提示词生成：按分镜 ID 跟踪，允许不同分镜并行生成（不走全局 rn 锁）
+// 创作写入串行，避免单镜补全与整集拆分相互覆盖。
 const videoPromptGeneratingIds = ref([])
 // 视频制作页多选快捷操作：全选 / 仅选未生成视频（勾选集与批量视频共用 selectedVideoSbIds）
 function toggleSelectAllVideos() {
@@ -2789,28 +2840,53 @@ function selectMissingVideos() {
   selectedVideoSbIds.value = sbs.value.filter(sb => !hasVid(sb)).map(sb => sb.id)
 }
 
+// Uses only original Huobao APIs; the MCP switch/service is not involved.
+let videoPromptPageActive = true
+async function readVideoPromptContext() {
+  if (!videoPromptPageActive) throw Error(t('professional.promptPageClosed'))
+  const project = await dramaAPI.get(dramaId)
+  const currentEpisode = project.episodes?.find(row => row.id === epId.value)
+  if (!currentEpisode) throw Error(t('continuity.conflict'))
+  const [storyboards, characters, scenes, props, styles] = await Promise.all([
+    episodeAPI.storyboards(currentEpisode.id), episodeAPI.characters(currentEpisode.id),
+    episodeAPI.scenes(currentEpisode.id), episodeAPI.props(currentEpisode.id), api.get('/style-presets'),
+  ])
+  return { project, episode: currentEpisode, storyboards, characters, scenes, props, style_prompt: styles.find(s => s.value === project.style && s.is_active)?.prompt || '' }
+}
+
+async function finishVideoPrompts(ids, force = false) {
+  videoPromptBatch.value = { running: true, total: 0, completed: 0 }
+  try {
+    return await completeVideoPrompts({
+      readContext: readVideoPromptContext, storyboardIds: ids, force,
+      generate: (id, current) => {
+        if (!videoPromptPageActive) throw Error(t('professional.promptPageClosed'))
+        return api.post('/agent/prompt_generator/chat', {
+        drama_id: dramaId, episode_id: current.episode.id,
+        model: chatModelOverride() || undefined, config_id: chatConfigId() || undefined,
+        message: agentMessage('video_prompt', { description: current.episode.description || '', storyboard_ids: [id], video_model: effectiveVideoModelLabel.value, storyboards: current.storyboards, project: current.project, style_prompt: current.style_prompt }),
+        })
+      },
+      onProgress: progress => { videoPromptBatch.value = { running: true, ...progress } },
+    })
+  } finally {
+    videoPromptBatch.value = { running: false, total: 0, completed: 0 }
+    await refresh()
+  }
+}
+
 async function batchVideoPrompts(explicitIds) {
-  if (videoPromptBatch.value.running || !epId.value) return
+  if (videoPromptBatch.value.running || rn.value || preparingAgent.value || videoPromptGeneratingIds.value.length || !epId.value) return
   if (!sbs.value.length) { toast.warning(t('episode.sb.breakFirst')); return }
-  // 选择模式下有勾选 → 仅补齐所选；否则全量补齐缺失
-  const ids = Array.isArray(explicitIds) ? explicitIds : (videoSelectMode.value && selectedVideoSbIds.value.length) ? [...selectedVideoSbIds.value] : sbs.value.filter(sb => !(sb.video_prompt || sb.videoPrompt || '').trim()).map(sb => sb.id)
-  if (!ids.length) { toast.info(t('episode.sb.allHavePrompts')); return }
+  const ids = Array.isArray(explicitIds) ? explicitIds : (videoSelectMode.value && selectedVideoSbIds.value.length) ? [...selectedVideoSbIds.value] : undefined
+  // Lock before saving, so repeated clicks cannot submit overlapping requests.
+  videoPromptBatch.value = { running: true, total: 0, completed: 0 }
   try {
     await saveRequirements()
-    const res = await episodeAPI.generateVideoPrompts(epId.value, chatModelOverride(), chatConfigId(), ids)
-    if (!res?.total) {
-      if (res?.already_running) {
-        videoPromptBatch.value = { running: true, total: 0, completed: 0 }
-        pollVideoPromptBatch()
-      } else toast.info(ids ? t('episode.sb.selectedMissing') : t('episode.sb.allHavePrompts'))
-      return
-    }
-    videoPromptBatch.value = { running: true, total: res.total, completed: 0 }
-    toast.info(t('episode.sb.batchStarted', { n: res.total }))
-    pollVideoPromptBatch()
-  } catch (e) {
-    toastError(e)
-  }
+    const report = await finishVideoPrompts(ids, !!ids)
+    toast.success(t(report.generated.length ? 'episode.sb.batchDone' : 'episode.sb.allHavePrompts'))
+  } catch (e) { toastError(e) }
+  finally { videoPromptBatch.value.running = false }
 }
 
 function pollVideoPromptBatch(attempts = 240) {
@@ -2839,42 +2915,30 @@ function pollVideoPromptBatch(attempts = 240) {
   setTimeout(() => tick(attempts), 2500)
 }
 async function doBreakdown() {
-  if (preparingAgent.value || rn.value) return
+  if (preparingAgent.value || rn.value || videoPromptBatch.value.running || videoPromptGeneratingIds.value.length) return
   preparingAgent.value = true
   try {
     await saveScr()
     const description = await saveRequirements()
-    await runAgent('storyboard_breaker', agentMessage('breakdown', { description, video_model: effectiveVideoModelLabel.value }), dramaId, epId.value, onBreakdownDone, chatModelOverride(), chatConfigId())
+    const current = await readVideoPromptContext()
+    await runAgent('storyboard_breaker', agentMessage('breakdown', { description, video_model: effectiveVideoModelLabel.value, project: current.project, style_prompt: current.style_prompt }), dramaId, epId.value, onBreakdownDone, chatModelOverride(), chatConfigId())
   } catch (e) { toastError(e) } finally { preparingAgent.value = false }
 }
 
-/** 拆分完成后刷新并自动补齐缺失的视频提示词（兜住 Agent 漏写/截断） */
+/** Check every saved prompt, including nonempty drafts, before reporting completion. */
 async function onBreakdownDone() {
-  await refresh()
-  const missing = sbs.value.filter(sb => !(sb.video_prompt || sb.videoPrompt || '').trim())
-  if (missing.length) await batchVideoPrompts(missing.map(sb => sb.id))
+  await finishVideoPrompts()
 }
 
-// 按需为单个分镜生成视频提示词：由 prompt_generator 读取分镜字段生成并保存到 video_prompt
 async function genVideoPrompt(sb) {
-  if (!sb || videoPromptGeneratingIds.value.includes(sb.id)) return
-  const idx = sbs.value.indexOf(sb) + 1
+  if (!sb || rn.value || preparingAgent.value || videoPromptBatch.value.running || videoPromptGeneratingIds.value.length) return
   videoPromptGeneratingIds.value.push(sb.id)
   try {
-    await api.post(`/agent/prompt_generator/chat`, {
-      message: agentMessage('video_prompt', { description: await saveRequirements(), storyboard_ids: [sb.id], video_model: effectiveVideoModelLabel.value }),
-      drama_id: dramaId,
-      episode_id: epId.value,
-      model: chatModelOverride() || undefined,
-      config_id: chatConfigId() || undefined,
-    })
-    await refresh()
-    toast.success(t('professional.agentResponse'))
-  } catch (e) {
-    toastError(e)
-  } finally {
-    videoPromptGeneratingIds.value = videoPromptGeneratingIds.value.filter(id => id !== sb.id)
-  }
+    await saveRequirements()
+    await finishVideoPrompts([sb.id], true)
+    toast.success(t('episode.sb.batchDone'))
+  } catch (e) { toastError(e) }
+  finally { videoPromptGeneratingIds.value = videoPromptGeneratingIds.value.filter(id => id !== sb.id) }
 }
 
 function sleep(ms) {
@@ -3248,22 +3312,34 @@ function uploadAssetImage(kind, id) {
 }
 
 async function genVid(sb, opts = {}) {
+  let dispatched = false
   try {
+    if (sb?.id === selectedSb.value?.id && continuityDraftDirty.value) throw new ContinuityError('请先保存接续表 / Save the continuity plan first.')
     await saveRequirements()
+    await refresh(true)
+    sb = sbs.value.find(s => s.id === sb?.id)
+    if (!sb) throw new ContinuityError(t('continuity.conflict'))
     const params = videoInput(sb).body
+    assertContinuityInput(continuityContext(sb), params, videoOptions.value)
+    assertContinuityTasks(sbs.value, sb.id, (await taskAPI.listByEpisode(epId.value))?.tasks)
     delete failedVideoMessages.value[sb.id]
     if (!isPendingVideo(sb.id)) pendingVideoIds.value.push(sb.id)
+    dispatched = true
     const generation = await taskAPI.generate(params)
     if (!opts.silent) toast.success(t('episode.vid.generating'))
     await refresh()
     pollVideoGeneration(generation?.id, sb.id)
+    return true
   } catch (e) {
-    pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== sb.id)
-    failedVideoMessages.value = {
-      ...failedVideoMessages.value,
-      [sb.id]: e.message || t('episode.vid.genFailed'),
+    if (dispatched) {
+      pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== sb?.id)
+      failedVideoMessages.value = {
+        ...failedVideoMessages.value,
+        [sb?.id]: e.message || t('episode.vid.genFailed'),
+      }
     }
     toastError(e, { fallback: 'episode.vid.genFailed' })
+    return false
   }
 }
 async function pollVideoGeneration(generationId, storyboardId) {
@@ -4725,6 +4801,7 @@ onMounted(() => setTimeout(() => autoTour('episode', EPISODE_TOUR, t), 900))
   cursor: pointer;
 }
 .video-history-item:hover .video-history-del { display: flex; }
+.video-preparation-error { color: var(--danger, #c75a53); margin: 0; padding: 12px; font-size: 12px; line-height: 1.6; }
 .video-task-player {
   min-width: 0;
   min-height: 0;

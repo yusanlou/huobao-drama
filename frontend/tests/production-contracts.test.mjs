@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
-import { emptyRequirements, parseRequirements, mergeRequirements, agentMessage, inspectVideoInput, productionChecks } from '../../shared/production.mjs'
+import { completeVideoPrompts, emptyRequirements, parseRequirements, mergeRequirements, agentMessage, inspectVideoInput, productionChecks, requiresContinuityFrame, continuityCheck, parseContinuity, assertContinuityInput, assertContinuityBatch } from '../../shared/production.mjs'
 
 test('requirements preserve surrounding text exactly and reject damaged/duplicate/unknown blocks', () => {
   const req = { ...emptyRequirements(), target_duration_seconds: 54, must_keep: ['事实'] }
@@ -61,6 +61,53 @@ test('preview injects style once without changing submitted prompt; checks remai
   assert.equal(checks.difference_seconds, 1); assert.deepEqual(checks.missing_quoted_text, ['一句完整的话。']); assert.equal(checks.speech_duration_measured, false)
 })
 
+test('editorial evidence follows shot order, accepts native and UI shapes and never approves semantics', () => {
+  const shots = [
+    { id: 3, storyboard_number: 3, image_prompt: '听到笑声才转头', description: '寻找笑声', duration: 4 },
+    { id: 1, storyboard_number: 1, result: '站定镜前', duration: 3 },
+    { id: 2, storyboard_number: 2, imagePrompt: '已在微笑的脸', description: '从困倦演到惊讶', videoPrompt: '看清后惊讶', result: '惊讶地看镜子', shotType: '近景', duration: 7 },
+  ]
+  const checks = productionChecks(shots, emptyRequirements(), '2')
+  assert.equal(checks.continuity.previous.end, '站定镜前')
+  assert.equal(checks.continuity.current.start_frame, '已在微笑的脸')
+  assert.equal(checks.continuity.current.camera.shot_type, '近景')
+  assert.equal(checks.continuity.next.start_frame, '听到笑声才转头')
+  assert.deepEqual(shots.map(s => s.id), [3, 1, 2])
+  // Complete fields can still contradict each other. Do not invent an automatic verdict.
+  assert.deepEqual(checks.editorial_review.missing_fields, [])
+  assert.equal(checks.editorial_review.status, 'needs_review')
+  assert.equal(checks.editorial_review.automatic_approval, false)
+  assert.deepEqual(checks.editorial_review.questions.map(q => q.id), ['source_information', 'prompt_transfer', 'reaction', 'transition', 'staging', 'reveal', 'states', 'timing'])
+  assert.equal(productionChecks(shots, null, 1).continuity.previous, null)
+  assert.equal(productionChecks(shots, null, 3).continuity.next, null)
+})
+
+test('no selected shot never leaks the first shot as a false next shot; missing evidence is explicit', () => {
+  const shots = [{ id: 1, duration: 4, image_prompt: ' ', result: 'done' }]
+  for (const id of [undefined, 99]) {
+    const checks = productionChecks(shots, null, id)
+    assert.equal(checks.continuity, null)
+    assert.equal(checks.next, '')
+    assert.equal(checks.editorial_review.status, 'no_selection')
+    assert.equal(checks.storyboard_seconds, 4)
+  }
+  assert.deepEqual(productionChecks(shots, null, 1).editorial_review.missing_fields, ['description', 'image_prompt', 'video_prompt'])
+})
+
+test('video Agent messages include missing native start/end/camera evidence without expanding the write scope', () => {
+  const storyboards = [
+    { id: 1, storyboard_number: 1, result: 'previous end' },
+    { id: 2, storyboard_number: 2, image_prompt: 'sleepy face', result: 'surprised face', description: 'discover', duration: 7, angle: 'mirror view', movement: 'static', sound_effect: 'a suppressed laugh', bgm_prompt: 'no music' },
+    { id: 3, storyboard_number: 3, image_prompt: 'still looking in mirror', description: 'turn at laugh' },
+    { id: 4, storyboard_number: 4, description: 'unrelated private scene' },
+  ]
+  const message = agentMessage('video_prompt', { storyboard_ids: [2], storyboards })
+  for (const text of ['sleepy face', 'surprised face', 'mirror view', 'static', 'previous end', 'turn at laugh', 'a suppressed laugh', 'no music']) assert.ok(message.includes(text))
+  assert.ok(!message.includes('unrelated private scene'))
+  assert.match(message, /只允许更新指定 ID 的 video_prompt/)
+  assert.ok(!agentMessage('rewrite', { storyboards }).includes('sleepy face'))
+})
+
 // Run the actual page functions against delayed/failing native saves, without an AI call.
 const require = createRequire(new URL('../package.json', import.meta.url))
 const { parse: parseJS } = require('@babel/parser')
@@ -80,11 +127,38 @@ test('rewrite waits for source and requirements saves; failure stops generation 
   await ctx.doRewrite()
   assert.deepEqual(requests, []); assert.deepEqual(errors, ['save failed']); assert.equal(ctx.preparingAgent.value, false)
 })
-test('post-breakdown completion submits only missing prompt IDs', async () => {
-  let submitted
-  const ctx = vm.createContext({ refresh: async () => {}, sbs: { value: [{ id: 1, video_prompt: 'approved' }, { id: 2, video_prompt: ' ' }, { id: 3, videoPrompt: 'edited' }] }, batchVideoPrompts: async ids => { submitted = ids } })
-  vm.runInContext(functions(['onBreakdownDone']), ctx); await ctx.onBreakdownDone()
-  assert.deepEqual(Array.from(submitted), [2])
+test('web default breakdown uses shared completion for nonempty short prompts via original APIs', async () => {
+  const requests = [], errors = []
+  const saved = [{ id: 4, image_prompt: 'saved start', result: 'saved end', duration: 6, video_prompt: 'short existing prompt' }]
+  const full = '【画面起点】床边站定。【动作节奏】目光转向窗外。【摄影】固定中景。【光色与材质】侧窗柔光，哑光木框。【声音】无语音，风声。【结束与衔接】看向窗外停住。'
+  const ctx = vm.createContext({ videoPromptBatch: { value: { running: false } }, videoPromptPageActive: true, dramaId: 1,
+    completeVideoPrompts, readVideoPromptContext: async () => ({ episode: { id: 2, description: '' }, storyboards: structuredClone(saved) }),
+    agentMessage, effectiveVideoModelLabel: { value: 'wan' }, chatModelOverride() {}, chatConfigId() {}, refresh: async () => { requests.push('refresh') },
+    api: { post: async (path, body) => { requests.push({ path, body }); saved[0].video_prompt = full } }, toastError: e => errors.push(e.message) })
+  vm.runInContext(functions(['finishVideoPrompts', 'onBreakdownDone']), ctx)
+  await ctx.onBreakdownDone()
+  assert.equal(requests[0].path, '/agent/prompt_generator/chat')
+  assert.match(requests[0].body.message, /saved start/)
+  assert.match(requests[0].body.message, /【光色与材质】/)
+  assert.equal(saved[0].video_prompt, full); assert.equal(ctx.videoPromptBatch.value.running, false)
+  assert.deepEqual(errors, [])
+  ctx.readVideoPromptContext = async () => { throw Error('read failed') }
+  await assert.rejects(ctx.onBreakdownDone(), /read failed/)
+  assert.equal(requests.filter(x => typeof x === 'object').length, 1)
+})
+
+test('single generation saves requirements then forces only selected prompt; errors do not toast success', async () => {
+  const requests = [], errors = []
+  const ctx = vm.createContext({ videoPromptGeneratingIds: { value: [] }, videoPromptBatch: { value: { running: false } }, rn: { value: false }, preparingAgent: { value: false },
+    saveRequirements: async () => { requests.push('requirements') }, finishVideoPrompts: async (ids, force) => { requests.push([Array.from(ids), force]) }, t: s => s,
+    toast: { success: () => requests.push('success') }, toastError: e => errors.push(e.message) })
+  vm.runInContext(functions(['genVideoPrompt']), ctx)
+  await ctx.genVideoPrompt({ id: 4 })
+  assert.deepEqual(requests, ['requirements', [[4], true], 'success'])
+  assert.deepEqual(Array.from(ctx.videoPromptGeneratingIds.value), [])
+  requests.length = 0; ctx.finishVideoPrompts = async () => { throw Error('incomplete') }
+  await ctx.genVideoPrompt({ id: 4 })
+  assert.deepEqual(requests, ['requirements']); assert.deepEqual(errors, ['incomplete'])
 })
 
 test('requirements accept reactive Vue form values without cloning Proxy failures', () => {
@@ -93,23 +167,63 @@ test('requirements accept reactive Vue form values without cloning Proxy failure
   assert.deepEqual(parseRequirements(mergeRequirements('Original', draft)).requirements, JSON.parse(JSON.stringify(draft)))
 })
 
+test('web video submission stops on missing continuity and on failed fresh reads', async () => {
+  const f = fixture(), errors = [], submitted = []
+  const ctx = vm.createContext({ saveRequirements: async () => {}, refresh: async () => {}, sbs: { value: [f.shot] },
+    selectedSb: { value: f.shot }, continuityDraftDirty: { value: false },
+    videoInput: () => inspectVideoInput(f), continuityContext: sb => ({ ...f, shot: sb, storyboards: [f.shot] }), assertContinuityInput,
+    videoOptions: { value: {} }, pendingVideoIds: { value: [] }, failedVideoMessages: { value: {} }, toastError: e => errors.push(e.message),
+    taskAPI: { generate: async body => { submitted.push(body) } }, t: s => s })
+  vm.runInContext(functions(['genVid']), ctx)
+  assert.equal(await ctx.genVid(f.shot), false)
+  assert.match(errors[0], /尚未填写/); assert.deepEqual(submitted, [])
+  ctx.refresh = async strict => { assert.equal(strict, true); throw Error('read failed') }
+  assert.equal(await ctx.genVid(f.shot), false)
+  assert.equal(errors[1], 'read failed'); assert.deepEqual(submitted, [])
+})
+
+test('web batch validates the whole set before submitting any target', async () => {
+  const f = fixture(), errors = [], submitted = []
+  const ctx = vm.createContext({ batchVideoConfirm: { value: { open: true, targets: [f.shot] } }, saveRequirements: async () => {}, refresh: async () => {}, sbs: { value: [f.shot] }, assertContinuityBatch,
+    genVid: async s => { submitted.push(s) }, toastError: e => errors.push(e.message), videoOptions: { value: {} } })
+  vm.runInContext(functions(['confirmBatchVideos']), ctx)
+  await ctx.confirmBatchVideos()
+  assert.match(errors[0], /尚未填写/); assert.deepEqual(submitted, [])
+})
+
 test('new page components render with real Vue and i18n runtime', async () => {
   const { createSSRApp } = require('vue'), { renderToString } = require('@vue/server-renderer'), { createI18n } = require('vue-i18n')
   const { parse, compileScript } = require('@vue/compiler-sfc'), { transformSync } = require('esbuild')
-  const messages = JSON.parse(readFileSync(new URL('../app/locales/zh.json', import.meta.url), 'utf8'))
+  for (const locale of ['zh', 'en', 'ja', 'ko']) {
+  const messages = JSON.parse(readFileSync(new URL(`../app/locales/${locale}.json`, import.meta.url), 'utf8'))
   for (const [name, props] of [
     ['ProductionRequirements', { modelValue: { ...emptyRequirements(), target_duration_seconds: 54 }, dirty: false }],
     ['VideoInputOptions', { modelValue: { mode: 'first_last' }, capabilities: { modes: ['text', 'reference', 'first_frame', 'first_last'], audio: true, extend: true }, defaultAudio: true }],
-    ['ProductionChecks', { checks: productionChecks([{ id: 1, duration: 6, description: '旁白：“完整台词。”' }], emptyRequirements(), 1), preview: inspectVideoInput(fixture()) }],
+    ['ProductionChecks', { checks: productionChecks([{ id: 1, duration: 6, description: '旁白：“完整台词。”' }], emptyRequirements(), 1, '被子随呼吸轻轻起伏。<script>untrusted()</script>'), preview: inspectVideoInput(fixture()) }],
+    ['ContinuityPlan', { shot: fixture().shot, check: continuityCheck([fixture().shot], 4), characters: fixture().characters }],
   ]) {
     const source = readFileSync(new URL(`../app/components/${name}.vue`, import.meta.url), 'utf8')
     const script = compileScript(parse(source).descriptor, { id: name, inlineTemplate: true }).content
     const mod = { exports: {} }
-    new Function('require', 'module', 'exports', transformSync(script, { format: 'cjs' }).code)(require, mod, mod.exports)
+    const componentRequire = id => id === '../../shared-production' ? { parseContinuity, requiresContinuityFrame } : require(id)
+    new Function('require', 'module', 'exports', transformSync(script, { format: 'cjs' }).code)(componentRequire, mod, mod.exports)
     const app = createSSRApp(mod.exports.default, props)
-    app.use(createI18n({ legacy: false, locale: 'zh', messages: { zh: messages } }))
+    app.use(createI18n({ legacy: false, locale, messages: { [locale]: messages } }))
     const html = await renderToString(app)
     assert.match(html, /<details/)
     assert.ok(!html.includes('professional.'))
+    assert.ok(!html.includes('continuity.'))
+    if (name === 'ProductionChecks') {
+      assert.ok(html.includes(messages.professional.editorialPending))
+      assert.ok(html.includes(messages.professional.startFrame))
+      assert.ok(html.includes(messages.professional.currentEnd))
+      assert.ok(html.includes(messages.professional.check_states))
+      assert.ok(html.includes(messages.professional.sourceComparison))
+      assert.ok(html.includes('被子随呼吸轻轻起伏。'))
+      assert.ok(html.includes(messages.professional.check_source_information))
+      assert.ok(html.includes(messages.professional.check_prompt_transfer))
+      assert.ok(!html.includes('<script>untrusted()'))
+    }
+  }
   }
 })

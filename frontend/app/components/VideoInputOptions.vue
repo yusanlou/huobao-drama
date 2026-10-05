@@ -29,7 +29,7 @@ function set(key, value) { emit('update:modelValue', { ...props.modelValue, [key
 function urls(key, value) { set(key, value.split('\n').map(v => v.trim()).filter(Boolean)) }
 function seed(value) { const next = { ...props.modelValue }; if (value === '') delete next.seed; else next.seed = Number(value); emit('update:modelValue', next) }
 function changeMode(mode) {
-  const { first_frame_url, last_frame_url, reference_image_urls, reference_video_urls, reference_audio_urls, ...rest } = props.modelValue
+  const { first_frame_url, last_frame_url, reference_image_urls, reference_video_urls, reference_audio_urls, continuity_review, ...rest } = props.modelValue
   emit('update:modelValue', { ...rest, mode })
 }
 </script>

@@ -9,6 +9,7 @@
  */
 import { toast } from 'vue-sonner'
 import { i18n } from '~/composables/i18n'
+import { ContractError, ContinuityError, PromptCompletionError } from '../../shared-production'
 
 const t = (key: string, params?: Record<string, unknown>) => i18n.global.t(key, params)
 
@@ -40,6 +41,17 @@ function messageOf(err: unknown): string {
 export function mapError(err: unknown, opts?: { fallback?: string }): string {
   const msg = messageOf(err).trim()
   if (!msg) return opts?.fallback ? t(opts.fallback) : t('errors.unknown')
+
+  // These classes originate in our shared validators, not provider responses.
+  // Their actionable messages must not be discarded by the short-Chinese limit
+  // or mistaken for moderation/technical failures (e.g. a stale frame review).
+  if (err instanceof ContractError || err instanceof ContinuityError || err instanceof PromptCompletionError) {
+    const isChinese = String(i18n.global.locale.value).startsWith('zh')
+    return msg.split('\n').map(line => {
+      const [zh, ...en] = line.split(' / ')
+      return isChinese ? zh : en.join(' / ') || zh
+    }).join('\n')
+  }
 
   if (err instanceof TypeError && NETWORK_RE.test(msg)) return t('errors.network')
   if (err instanceof SyntaxError || NONJSON_RE.test(msg)) return t('errors.server')

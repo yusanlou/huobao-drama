@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Fault, failure, hash, Huobao, Ledger, now, requireValue, type Row } from './core.js'
-import { inspectVideoInput } from '../../../shared/production.mjs'
+import { inspectVideoInput, assertContinuityInput, assertContinuityBatch, assertContinuityTasks } from '../../../shared/production.mjs'
 
 export const capabilities = { atomic_batch: false, server_cas: false, provider_cancel: false, automatic_artifact_writeback: true }
 export class Production {
@@ -35,7 +35,7 @@ export class Production {
   }
   async prepare(projectId: number, episodeId: number, action: Row) {
     if (action.kind === 'storyboard_video') {
-      const preview = await this.inspectVideo(projectId, episodeId, action)
+      const preview = await this.inspectVideo(projectId, episodeId, action, true)
       return { path: '/tasks', body: preview.body, fingerprint: preview.fingerprint, overwrites_current: true, preview }
     }
     requireValue(action.video_options === undefined, 'INVALID_INPUT', 'video_options apply only to storyboard_video.')
@@ -75,7 +75,7 @@ export class Production {
     const body: Row = { type: 'image', storyboard_id: shot.id, drama_id: projectId, prompt, model: action.model, config_id: action.config_id ?? c.episode.image_config_id, reference_images: references, size: c.project.aspect_ratio === '9:16' ? '1080x1920' : '1920x1080' }
     return { path: '/tasks', body, fingerprint: hash([shot, bound, c.project.style, c.project.aspect_ratio, c.episode.image_config_id, c.episode.video_config_id, c.episode.resolution]), overwrites_current: true }
   }
-  async inspectVideo(projectId: number, episodeId: number, action: Row): Promise<Row> {
+  async inspectVideo(projectId: number, episodeId: number, action: Row, enforceContinuity = false): Promise<Row> {
     const c = await this.api.context(projectId, episodeId)
     const shot = c.storyboards.find((s: Row) => s.id === action.target_id)
     requireValue(shot, 'NOT_FOUND', 'Storyboard does not belong to this episode.')
@@ -85,9 +85,15 @@ export class Production {
     requireValue(config?.service_type === 'video', 'PRECONDITION', 'Select an existing video configuration.')
     const style = styles.find((r: Row) => r.value === c.project.style && r.is_active)
     const preview = inspectVideoInput({ ...c, shot, config, options: { ...action.video_options, model: action.model }, style_prompt: style?.prompt || '' })
-    return { ...preview, project_style: style ? { name: style.name, value: style.value, prompt: style.prompt } : null, fingerprint: hash([shot, c.characters, c.scenes, c.props, c.episode.description, c.episode.resolution, c.project.style, c.project.aspect_ratio, config, style]) }
+    if (enforceContinuity) {
+      assertContinuityInput({ ...c, shot }, preview.body, action.video_options || {})
+      assertContinuityTasks(c.storyboards, shot.id, (await this.api.call(`/episodes/${episodeId}/generation-tasks`))?.tasks)
+    }
+    return { ...preview, project_style: style ? { name: style.name, value: style.value, prompt: style.prompt } : null, fingerprint: hash([shot, preview.continuity?.review_snapshot, c.characters, c.scenes, c.props, c.episode.script_content, c.episode.description, c.episode.resolution, c.project.style, c.project.aspect_ratio, config, style]) }
   }
   async plan(projectId: number, episodeId: number, actions: Row[]) {
+    const videoIds = actions.filter(a => a.kind === 'storyboard_video').map(a => a.target_id)
+    if (videoIds.length) assertContinuityBatch((await this.api.context(projectId, episodeId)).storyboards, videoIds)
     const steps = []
     for (const action of actions) steps.push({ action, ...await this.prepare(projectId, episodeId, action) })
     this.ledger.gate()

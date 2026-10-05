@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { createExtension } from '../src/server.js'
-import { emptyRequirements, mergeRequirements } from '../../../shared/production.mjs'
+import { emptyRequirements, mergeRequirements, productionChecks, mergeContinuity, parseContinuity } from '../../../shared/production.mjs'
 import { execFileSync } from 'node:child_process'
 import { hash } from '../src/core.js'
 const repo = resolve(fileURLToPath(new URL('../../..', import.meta.url)))
@@ -71,6 +71,17 @@ try {
   const webDescription = mergeRequirements(nativeEpisode.description, { ...emptyRequirements(), target_duration_seconds: 54, must_keep: ['网页添加的事实'] })
   await fetch(`${base}/episodes/${episode.id}`, { method: 'PUT', headers, body: JSON.stringify({ description: webDescription }) })
   assert.deepEqual((await call('hb_get_production_requirements', scope)).requirements.must_keep, ['网页添加的事实'])
+  const checks = await call('hb_get_production_checks', { ...scope, storyboard_id: webpageShots[0].id })
+  assert.deepEqual(checks, productionChecks(webpageShots, { ...emptyRequirements(), target_duration_seconds: 54, must_keep: ['网页添加的事实'] }, webpageShots[0].id, nativeEpisode.script_content || nativeEpisode.content || ''))
+  assert.equal(checks.editorial_review.status, 'needs_review')
+  const state = { id: assets.receipts[0].id, position: 'door', pose: 'standing', appearance: 'white clothes', visible: true }
+  const continuityPlan = { version: 1, transition: 'start', reason: 'Opening', space: 'Room with door', camera: 'Wide static', start: [state], end: [state] }
+  await call('hb_write_storyboards', { ...scope, request_key: 'smoke-continuity', items: [{ id: webpageShots[0].id, fields: { result: mergeContinuity('Standing at door.', continuityPlan) } }] })
+  const nativePlan = (await (await fetch(`${base}/episodes/${episode.id}/storyboards`)).json()).data[0]
+  assert.deepEqual(parseContinuity(nativePlan.result).plan, continuityPlan)
+  const continuityChecks = await call('hb_get_production_checks', { ...scope, storyboard_id: nativePlan.id })
+  assert.deepEqual(continuityChecks.handoff.issues, [])
+  assert.equal(continuityChecks.handoff.automatic_approval, false)
   const modelConfigs = await call('hb_model_config_action', { action: 'list' })
   assert.ok(!JSON.stringify(modelConfigs).includes('FAKE_TEST_KEY'))
   for (const language of ['zh', 'en', 'ja', 'ko']) {
